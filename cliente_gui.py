@@ -11,6 +11,8 @@ from datetime import datetime
 import customtkinter as ctk
 from tkinter import messagebox, filedialog, Menu, simpledialog
 from PIL import Image, ImageTk
+import pyaudio
+import wave
 
 PASTA_ARQUIVOS_RECEBIDOS = "arquivos_recebidos"
 TAMANHO_MAXIMO_ARQUIVO_MB = 15
@@ -101,6 +103,9 @@ def e_imagem(nome_arquivo):
     """Verifica se o arquivo é uma imagem suportada."""
     return nome_arquivo.lower().endswith(EXTENSOES_IMAGEM)
 
+def e_audio(nome_arquivo):
+    """Verifica se o arquivo é de áudio."""
+    return nome_arquivo.lower().endswith(('.wav', '.mp3', '.ogg'))
 
 def abrir_no_sistema(caminho):
     """Abre um arquivo comum no aplicativo padrão do sistema operacional."""
@@ -227,7 +232,7 @@ class ModalImagemDiscord(ctk.CTkToplevel):
 
 
 class JanelaChatPrivado(ctk.CTkToplevel):
-    """Janela de conversa privada com suporte a temas."""
+    """Janela de conversa privada com suporte a temas e áudio."""
     def __init__(self, app_principal, destinatario):
         super().__init__(app_principal)
         self.app_principal = app_principal
@@ -237,7 +242,7 @@ class JanelaChatPrivado(ctk.CTkToplevel):
         self.timer_typing = None
 
         self.title(f"Chat Privado com {destinatario}")
-        self.geometry("480x540")
+        self.geometry("520x540")
 
         self.protocol("WM_DELETE_WINDOW", self.fechar)
 
@@ -306,7 +311,7 @@ class JanelaChatPrivado(ctk.CTkToplevel):
 
         self.ent_mensagem = ctk.CTkEntry(
             frame_rodape,
-            placeholder_text="Mensagem ou /ajuda, /clear...",
+            placeholder_text="Mensagem...",
             font=("Segoe UI", 12),
             corner_radius=20,
             height=40
@@ -320,7 +325,7 @@ class JanelaChatPrivado(ctk.CTkToplevel):
             text="Enviar",
             font=("Segoe UI", 11, "bold"),
             corner_radius=20,
-            width=80,
+            width=70,
             height=40,
             command=self.enviar_mensagem
         )
@@ -328,14 +333,28 @@ class JanelaChatPrivado(ctk.CTkToplevel):
 
         self.btn_anexo = ctk.CTkButton(
             frame_rodape,
-            text="Arquivo",
+            text="📎",
             font=("Segoe UI", 11, "bold"),
             corner_radius=20,
-            width=70,
+            width=40,
             height=40,
             command=lambda: self.app_principal.enviar_arquivo(destino=self.destinatario)
         )
         self.btn_anexo.pack(side="right", padx=(0, 8))
+
+        # BOTÃO DE GRAVAR ÁUDIO
+        self.btn_voz = ctk.CTkButton(
+            frame_rodape,
+            text="🎤",
+            font=("Segoe UI", 14, "bold"),
+            corner_radius=20,
+            width=40,
+            height=40,
+            fg_color="#E74C3C",
+            hover_color="#C0392B",
+            command=self.toggle_gravacao_privada
+        )
+        self.btn_voz.pack(side="right", padx=(0, 8))
 
     def aplicar_estilo(self, t):
         self.configure(fg_color=t["fundo"])
@@ -355,6 +374,9 @@ class JanelaChatPrivado(ctk.CTkToplevel):
         self.area_chat._textbox.tag_config("outro", foreground=t["privado"], font=("Consolas", 12, "bold"))
         self.area_chat._textbox.tag_config("sistema", foreground=t["sistema"], font=("Consolas", 11, "italic"))
         self.area_chat._textbox.tag_config("link_arquivo", foreground=t["accent"], font=("Consolas", 12, "bold", "underline"))
+
+    def toggle_gravacao_privada(self):
+        self.app_principal._toggle_gravacao(self.btn_voz, destino=self.destinatario)
 
     def notificar_digitacao(self, event=None):
         if event and event.keysym in ("Return", "BackSpace", "Tab", "Escape"):
@@ -470,7 +492,7 @@ class JanelaChatPrivado(ctk.CTkToplevel):
         tag = "voce" if remetente == self.app_principal.apelido else "outro"
 
         if e_imagem(nome_arquivo):
-            self.area_chat._textbox.insert("end", f"[{hora}] <{nome_exibido}>:\n", tag)
+            self.area_chat._textbox.insert("end", f"[{hora}] <{nome_exibido}> enviou uma imagem:\n", tag)
 
             if os.path.exists(caminho_local):
                 try:
@@ -495,6 +517,17 @@ class JanelaChatPrivado(ctk.CTkToplevel):
                     self.area_chat._textbox.insert("end", "\n")
                 except Exception:
                     pass
+
+        elif e_audio(nome_arquivo):
+            self.area_chat._textbox.insert("end", f"[{hora}] <{nome_exibido}> enviou um áudio:\n", tag)
+            btn_play = ctk.CTkButton(
+                self.area_chat._textbox, text="▶ Tocar Áudio", width=100, height=28,
+                fg_color="#F39C12", hover_color="#D68910",
+                command=lambda c=caminho_local: self.app_principal.tocar_audio(c)
+            )
+            self.area_chat._textbox.window_create("end", window=btn_play)
+            self.area_chat._textbox.insert("end", "\n")
+
         else:
             tag_link = f"link_arquivo_{id_msg}"
             self.area_chat._textbox.insert("end", f"[{hora}] <{nome_exibido}> enviou um arquivo: ", tag)
@@ -523,7 +556,7 @@ class JanelaChatPrivado(ctk.CTkToplevel):
 
 
 class ChatClienteGUI(ctk.CTk):
-    """Interface Principal do Cliente com suporte dinâmico a temas."""
+    """Interface Principal do Cliente com suporte dinâmico a temas e áudio."""
     def __init__(self):
         super().__init__()
 
@@ -546,6 +579,12 @@ class ChatClienteGUI(ctk.CTk):
         self.tempo_limite_inatividade = 300  # 5 minutos
         self.ultima_atividade = time.time()
         self.status_usuarios = {}
+
+        # VARIAVEIS DE GRAVAÇÃO DE ÁUDIO
+        self.is_recording = False
+        self.audio_frames = []
+        self.audio_stream = None
+        self.pyaudio_inst = None
 
         self.title("PyChat Multi-Temas Client")
         self.geometry("880x660")
@@ -752,7 +791,7 @@ class ChatClienteGUI(ctk.CTk):
             text="Enviar Geral",
             font=("Segoe UI", 12, "bold"),
             corner_radius=25,
-            width=110,
+            width=100,
             height=46,
             command=self.enviar_mensagem
         )
@@ -760,14 +799,28 @@ class ChatClienteGUI(ctk.CTk):
 
         self.btn_anexo = ctk.CTkButton(
             frame_rodape,
-            text="Arquivo",
+            text="📎 Arquivo",
             font=("Segoe UI", 12, "bold"),
             corner_radius=25,
-            width=100,
+            width=90,
             height=46,
             command=lambda: self.enviar_arquivo()
         )
         self.btn_anexo.pack(side="right", padx=(0, 8))
+
+        # BOTÃO DE VOZ NO CHAT GERAL
+        self.btn_voz = ctk.CTkButton(
+            frame_rodape,
+            text="🎤 Gravar",
+            font=("Segoe UI", 12, "bold"),
+            corner_radius=25,
+            width=90,
+            height=46,
+            fg_color="#E74C3C",
+            hover_color="#C0392B",
+            command=self.toggle_gravacao_geral
+        )
+        self.btn_voz.pack(side="right", padx=(0, 8))
 
         self.aplicar_tema(self.tema_atual_nome)
         self.verificar_inatividade()
@@ -814,6 +867,86 @@ class ChatClienteGUI(ctk.CTk):
         for janela in list(self.janelas_privadas.values()):
             if janela.winfo_exists():
                 janela.aplicar_estilo(t)
+
+    # =========================================================
+    # LÓGICA DE ÁUDIO E VOZ
+    # =========================================================
+    def toggle_gravacao_geral(self):
+        self._toggle_gravacao(self.btn_voz, destino=None)
+
+    def _toggle_gravacao(self, botao_referencia, destino=None):
+        if not self.is_recording:
+            # INICIA A GRAVAÇÃO
+            self.is_recording = True
+            botao_referencia.configure(text="⏹ Parar", fg_color="#2ECC71", hover_color="#27AE60")
+            threading.Thread(target=self._gravar_audio_thread, daemon=True).start()
+        else:
+            # PARA E ENVIA
+            self.is_recording = False
+            texto_padrao = "🎤 Gravar" if destino is None else "🎤"
+            botao_referencia.configure(text=texto_padrao, fg_color="#E74C3C", hover_color="#C0392B")
+            self._salvar_e_enviar_audio(destino)
+
+    def _gravar_audio_thread(self):
+        CHUNK = 1024
+        FORMAT = pyaudio.paInt16
+        CHANNELS = 1
+        RATE = 44100
+        
+        self.pyaudio_inst = pyaudio.PyAudio()
+        self.audio_stream = self.pyaudio_inst.open(format=FORMAT, channels=CHANNELS, rate=RATE, input=True, frames_per_buffer=CHUNK)
+        self.audio_frames = []
+
+        while self.is_recording:
+            try:
+                data = self.audio_stream.read(CHUNK)
+                self.audio_frames.append(data)
+            except Exception:
+                break
+
+        self.audio_stream.stop_stream()
+        self.audio_stream.close()
+        self.pyaudio_inst.terminate()
+
+    def _salvar_e_enviar_audio(self, destino):
+        nome_arquivo = f"audio_{int(time.time())}.wav"
+        
+        os.makedirs(PASTA_ARQUIVOS_RECEBIDOS, exist_ok=True)
+        caminho_temp = os.path.join(PASTA_ARQUIVOS_RECEBIDOS, nome_arquivo)
+        
+        wf = wave.open(caminho_temp, 'wb')
+        wf.setnchannels(1)
+        wf.setsampwidth(self.pyaudio_inst.get_sample_size(pyaudio.paInt16))
+        wf.setframerate(44100)
+        wf.writeframes(b''.join(self.audio_frames))
+        wf.close()
+
+        tamanho_bytes = os.path.getsize(caminho_temp)
+        with open(caminho_temp, "rb") as f:
+            conteudo_b64 = base64.b64encode(f.read()).decode("utf-8")
+
+        pacote = {"tipo": "arquivo", "nome_arquivo": nome_arquivo, "tamanho": tamanho_bytes, "conteudo": conteudo_b64}
+        if destino:
+            pacote["destino"] = destino
+
+        self.sock.sendall((json.dumps(pacote) + "\n").encode("utf-8"))
+
+    def tocar_audio(self, caminho):
+        def _play():
+            try:
+                wf = wave.open(caminho, 'rb')
+                p = pyaudio.PyAudio()
+                stream = p.open(format=p.get_format_from_width(wf.getsampwidth()), channels=wf.getnchannels(), rate=wf.getframerate(), output=True)
+                data = wf.readframes(1024)
+                while data:
+                    stream.write(data)
+                    data = wf.readframes(1024)
+                stream.stop_stream()
+                stream.close()
+                p.terminate()
+            except Exception as e:
+                messagebox.showerror("Erro de Áudio", f"Erro ao reproduzir o áudio:\n{e}")
+        threading.Thread(target=_play, daemon=True).start()
 
     # --- GERENCIAMENTO DE STATUS ---
     def registrar_atividade(self, event=None):
@@ -1195,6 +1328,15 @@ class ChatClienteGUI(ctk.CTk):
                         self.area_chat._textbox.insert("end", "\n")
                     except Exception:
                         pass
+            elif e_audio(nome_arquivo):
+                self.area_chat._textbox.insert("end", f"[{hora}] <{nome_exibido}> enviou um áudio:\n", tag)
+                btn_play = ctk.CTkButton(
+                    self.area_chat._textbox, text="▶ Tocar Áudio", width=100, height=28,
+                    fg_color="#F39C12", hover_color="#D68910",
+                    command=lambda c=caminho_salvo: self.tocar_audio(c)
+                )
+                self.area_chat._textbox.window_create("end", window=btn_play)
+                self.area_chat._textbox.insert("end", "\n")
             else:
                 tag_link = f"link_arquivo_{id_msg}"
                 self.area_chat._textbox.insert("end", f"[{hora}] <{nome_exibido}> enviou um arquivo: ", tag)
