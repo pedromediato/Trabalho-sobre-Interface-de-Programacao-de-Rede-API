@@ -10,7 +10,7 @@ Referências utilizadas:
 Nesta etapa, o código foi expandido de 1-para-1 para suportar múltiplos clientes
 simultâneos com gerenciamento de apelidos, threads e envio de mensagens pelo próprio servidor.
 """
-
+#matheus lindo maravilhoso
 import socket
 import threading
 
