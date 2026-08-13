@@ -9,13 +9,14 @@ Referências utilizadas:
 - https://docs.python.org/3/library/datetime.html
 
 Nesta etapa, o código foi expandido para incluir:
-1) Bot de Comandos (/ajuda, /usuarios, /hora)
-2) Mensagens Privadas entre usuários (/msg <apelido> <mensagem>)
+1) Bot de Comandos para Clientes e Servidor (/ajuda, /usuarios, /hora)
+2) Comando EXCLUSIVO do Servidor (/log) para gerar histórico em .txt sob demanda
+3) Mensagens Privadas entre usuários (/msg <apelido> <mensagem>)
 """
 
 import socket
 import threading
-from datetime import datetime  # Usado para obter a hora atual do servidor
+from datetime import datetime  # Usado para obter a hora e data atual do servidor
 
 # --- Configurações básicas ---
 # Segundo o HOWTO do Python, portas baixas (abaixo de 1024) costumam ser
@@ -30,6 +31,44 @@ TAMANHO_BUFFER = 1024  # quantidade de bytes lidos por vez no recv()
 # Cada elemento é um dicionário contendo o socket e o apelido de quem conectou.
 clientes = []
 trava_clientes = threading.Lock()  # Garante acesso seguro à lista em ambiente multi-thread
+
+# --- Gerenciamento do Histórico de Log em Memória ---
+# [MODIFICAÇÃO DO GRUPO] O log deixa de ser salvo automaticamente em disco
+# e passa a ser acumulado em memória para ser exportado sob demanda via /log.
+historico_em_memoria = []
+trava_historico = threading.Lock()  # Garante acesso seguro ao histórico em ambiente multi-thread
+
+
+def registrar_evento(texto):
+    """
+    [MODIFICAÇÃO DO GRUPO]
+    Armazena mensagens e eventos na memória junto com a data e hora exatas.
+    """
+    data_hora = datetime.now().strftime("[%d/%m/%Y %H:%M:%S]")
+    linha = f"{data_hora} {texto}"
+    with trava_historico:
+        historico_em_memoria.append(linha)
+
+
+def gerar_arquivo_log():
+    """
+    [MODIFICAÇÃO DO GRUPO]
+    Gera um arquivo .txt sob demanda contendo o histórico das conversas.
+    O nome do arquivo é gerado dinamicamente com a data e hora da solicitação.
+    Exemplo: log_13-08-2026_11-54-25.txt
+    """
+    agora = datetime.now()
+    nome_arquivo = agora.strftime("historico_chat_%d-%m-%Y_%H-%M-%S.txt")
+
+    with trava_historico:
+        conteudo = "\n".join(historico_em_memoria)
+
+    try:
+        with open(nome_arquivo, "w", encoding="utf-8") as f:
+            f.write(conteudo + ("\n" if conteudo else ""))
+        print(f"\n[SERVIDOR] Log do chat gerado com sucesso! Arquivo: '{nome_arquivo}'\n")
+    except Exception as e:
+        print(f"\n[ERRO LOG] Não foi possível gerar o arquivo de log: {e}\n")
 
 
 def retransmitir_mensagem(mensagem_bytes, remetente_socket=None):
@@ -53,15 +92,56 @@ def retransmitir_mensagem(mensagem_bytes, remetente_socket=None):
 def enviar_mensagens_servidor():
     """
     Thread dedicada exclusivamente para permitir que o operador do servidor
-    digite e envie mensagens de broadcast para todos os clientes conectados.
+    digite comandos (/ajuda, /usuarios, /hora, /log) ou envie mensagens de broadcast.
     """
     while True:
         try:
             mensagem = input()
-            if mensagem.strip():
-                msg_formatada = f"[SERVIDOR]: {mensagem}\n"
-                # Transmite para TODOS os clientes conectados (remetente_socket=None)
-                retransmitir_mensagem(msg_formatada.encode("utf-8"), remetente_socket=None)
+            if not mensagem.strip():
+                continue
+
+            # =========================================================
+            # [MODIFICAÇÃO DO GRUPO] COMANDOS EXECUTADOS PELO SERVIDOR
+            # =========================================================
+            if mensagem.startswith("/"):
+                comando_minusculo = mensagem.lower().strip()
+
+                if comando_minusculo == "/ajuda":
+                    print(
+                        "\n--- COMANDOS DO OPERADOR DO SERVIDOR ---\n"
+                        "/ajuda      -> Mostra este menu de ajuda no servidor\n"
+                        "/usuarios   -> Lista os usuários conectados no momento\n"
+                        "/hora       -> Exibe a hora exata do servidor\n"
+                        "/log        -> EXCLUSIVO: Gera o arquivo .txt com o histórico do chat\n"
+                        "-----------------------------------------\n"
+                    )
+
+                elif comando_minusculo in ["/usuarios", "/online"]:
+                    with trava_clientes:
+                        lista_apelidos = [c["apelido"] for c in clientes]
+                    total = len(lista_apelidos)
+                    print(f"[BOT/SERVIDOR]: Usuários online ({total}): {', '.join(lista_apelidos)}")
+
+                elif comando_minusculo == "/hora":
+                    hora_atual = datetime.now().strftime("%H:%M:%S - %d/%m/%Y")
+                    print(f"[BOT/SERVIDOR]: Data e hora no servidor: {hora_atual}")
+
+                elif comando_minusculo == "/log":
+                    gerar_arquivo_log()
+
+                else:
+                    print(f"[BOT/SERVIDOR]: Comando '{mensagem}' não reconhecido. Digite /ajuda para ver as opções.")
+
+                continue
+
+            # Se não for comando, envia mensagem pública como [SERVIDOR]
+            msg_formatada = f"[SERVIDOR]: {mensagem}\n"
+            print(f"[SERVIDOR]: {mensagem}")
+            registrar_evento(f"[SERVIDOR]: {mensagem}")
+
+            # Transmite para TODOS os clientes conectados (remetente_socket=None)
+            retransmitir_mensagem(msg_formatada.encode("utf-8"), remetente_socket=None)
+
         except:
             break
 
@@ -84,7 +164,9 @@ def tratar_cliente(socket_cliente, endereco_cliente):
         with trava_clientes:
             clientes.append({"socket": socket_cliente, "apelido": apelido})
 
-        print(f"[SERVIDOR] Cliente conectado: {endereco_cliente} (Apelido: {apelido})")
+        msg_conexao = f"[SERVIDOR] Cliente conectado: {endereco_cliente} (Apelido: {apelido})"
+        print(msg_conexao)
+        registrar_evento(f"EVENTO: {apelido} conectou-se a partir de {endereco_cliente}")
 
         # Anuncia no chat que um novo usuário entrou
         msg_entrada = f"[SERVIDOR] {apelido} entrou no bate-papo!\n"
@@ -102,12 +184,14 @@ def tratar_cliente(socket_cliente, endereco_cliente):
             # significa que o outro lado fechou a conexão.
             if not dados_recebidos:
                 print(f"[SERVIDOR] Cliente {apelido} desconectou.")
+                registrar_evento(f"EVENTO: {apelido} desconectou-se.")
                 break
 
             mensagem = dados_recebidos.decode("utf-8").strip()
 
             if mensagem.lower() == "sair":
                 print(f"[SERVIDOR] Cliente {apelido} encerrou a conversa.")
+                registrar_evento(f"EVENTO: {apelido} encerrou a conversa via comando 'sair'.")
                 break
 
             # =========================================================
@@ -166,7 +250,10 @@ def tratar_cliente(socket_cliente, endereco_cliente):
                             # Confirma o envio para o remetente
                             msg_confirma = f"[mensagem privada enviada para {destinatario_apelido}]: {mensagem_privada}\n"
                             socket_cliente.sendall(msg_confirma.encode("utf-8"))
+
+                            # Registra log no console e na memória
                             print(f"[LOG de mensagens privadas] {apelido} -> {destinatario_apelido}: {mensagem_privada}")
+                            registrar_evento(f"[LOG de mensagens privadas] {apelido} -> {destinatario_apelido}: {mensagem_privada}")
                         else:
                             resposta_bot = f"[BOT]: Usuário '{destinatario_apelido}' não foi encontrado ou está offline.\n"
                             socket_cliente.sendall(resposta_bot.encode("utf-8"))
@@ -181,14 +268,16 @@ def tratar_cliente(socket_cliente, endereco_cliente):
             # Formata a mensagem normal com o Apelido do cliente que enviou
             msg_formatada = f"[{apelido}]: {mensagem}\n"
             
-            # Exibe a mensagem recebida diretamente no console do servidor
+            # Exibe a mensagem recebida no console e armazena na memória
             print(f"[{apelido}]: {mensagem}")
+            registrar_evento(f"[{apelido}]: {mensagem}")
 
             # Retransmite a mensagem formatada para todos os outros clientes
             retransmitir_mensagem(msg_formatada.encode("utf-8"), remetente_socket=socket_cliente)
 
     except Exception as e:
         print(f"[SERVIDOR] Erro na conexão com {apelido}: {e}")
+        registrar_evento(f"ERRO: Ocorreu uma falha na conexão com {apelido}: {e}")
 
     finally:
         # Remove o cliente da lista global ao desconectar
@@ -223,8 +312,9 @@ def iniciar_servidor():
     #    O número 5 é o tamanho máximo da fila de conexões pendentes.
     socket_servidor.listen(5)
     print(f"[SERVIDOR] Aguardando conexões em {HOST}:{PORTA}...\n")
+    registrar_evento("--- SERVIDOR INICIADO ---")
 
-    # Inicia a Thread para escutar o teclado do Servidor e permitir envio de mensagens
+    # Inicia a Thread para escutar o teclado do Servidor e permitir envio de mensagens/comandos
     thread_envio_servidor = threading.Thread(
         target=enviar_mensagens_servidor,
         daemon=True
@@ -250,6 +340,7 @@ def iniciar_servidor():
 
         except KeyboardInterrupt:
             print("\n[SERVIDOR] Encerramento solicitado.")
+            registrar_evento("--- SERVIDOR ENCERRADO PELO OPERADOR ---")
             break
 
     # 6) Fecha o socket principal do servidor ao encerrar o programa.
