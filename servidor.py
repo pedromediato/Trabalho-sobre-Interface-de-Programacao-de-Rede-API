@@ -1,48 +1,48 @@
 """
-servidor.py
+servidor.py - Servidor Bate-Papo Multi-thread com Protocolo JSON
 
-Base do SERVIDOR do trabalho de Sockets (Semana 1).
 Referências utilizadas:
 - https://docs.python.org/pt-br/3/howto/sockets.html
 - https://docs.python.org/3/library/socket.html
 - https://docs.python.org/3/library/threading.html
+- https://docs.python.org/3/library/json.html
 - https://docs.python.org/3/library/datetime.html
 
-Nesta etapa, o código foi expandido para incluir:
-1) Bot de Comandos para Clientes e Servidor (/ajuda, /usuarios, /hora)
-2) Comando EXCLUSIVO do Servidor (/log) para gerar histórico em .txt sob demanda
-3) Mensagens Privadas entre usuários (/msg <apelido> <mensagem>)
+Funcionalidades deste código:
+1) Comunicação estruturada via JSON (módulo 'json' nativo do Python).
+2) Envio delimitado por quebra de linha ('\n') para resolver o problema de colisão de pacotes TCP.
+3) Broadcast automático da lista de usuários online sempre que alguém entra ou sai.
+4) Bot de comandos para clientes e servidor (/ajuda, /usuarios, /hora).
+5) Comando exclusivo do servidor (/log) para exportar histórico sob demanda com nome timestamped.
+6) Suporte a mensagens privadas (/msg <apelido> <mensagem>).
 """
 
 import socket
 import threading
-from datetime import datetime  # Usado para obter a hora e data atual do servidor
+import json
+from datetime import datetime  # Para manipular datas e horários dos eventos
 
-# --- Configurações básicas ---
-# Segundo o HOWTO do Python, portas baixas (abaixo de 1024) costumam ser
-# reservadas para serviços conhecidos (HTTP, FTP, etc). Por isso usamos
-# uma porta alta, "de brincadeira", como 8080.
-HOST = "127.0.0.1"  # localhost -> só aceita conexões da própria máquina
+# --- Configurações da Rede ---
+# Usa IP local (127.0.0.1) e uma porta alta (8080) fora da faixa reservada (0-1024).
+HOST = "127.0.0.1"
 PORTA = 8080
-TAMANHO_BUFFER = 1024  # quantidade de bytes lidos por vez no recv()
+TAMANHO_BUFFER = 2048  # Aumentado para suportar pacotes JSON maiores
 
-# --- Gerenciamento de múltiplos clientes ---
-# Lista global para armazenar os clientes conectados.
-# Cada elemento é um dicionário contendo o socket e o apelido de quem conectou.
+# --- Gerenciamento da Lista de Clientes Conectados ---
+# Armazena dicionários no formato: {"socket": socket_obj, "apelido": "Nome"}
 clientes = []
-trava_clientes = threading.Lock()  # Garante acesso seguro à lista em ambiente multi-thread
+trava_clientes = threading.Lock()  # Lock para evitar que duas threads alterem a lista juntas
 
-# --- Gerenciamento do Histórico de Log em Memória ---
-# [MODIFICAÇÃO DO GRUPO] O log deixa de ser salvo automaticamente em disco
-# e passa a ser acumulado em memória para ser exportado sob demanda via /log.
+# --- Gerenciamento de Histórico de Log em Memória ---
+# As conversas ficam salvas na RAM e só vão para disco quando o servidor digita /log
 historico_em_memoria = []
-trava_historico = threading.Lock()  # Garante acesso seguro ao histórico em ambiente multi-thread
+trava_historico = threading.Lock()  # Lock para acesso thread-safe ao histórico
 
 
 def registrar_evento(texto):
     """
-    [MODIFICAÇÃO DO GRUPO]
-    Armazena mensagens e eventos na memória junto com a data e hora exatas.
+    Armazena qualquer mensagem ou evento na lista em memória,
+    acrescentando a data e hora formatadas [DD/MM/AAAA HH:MM:SS].
     """
     data_hora = datetime.now().strftime("[%d/%m/%Y %H:%M:%S]")
     linha = f"{data_hora} {texto}"
@@ -52,18 +52,20 @@ def registrar_evento(texto):
 
 def gerar_arquivo_log():
     """
-    [MODIFICAÇÃO DO GRUPO]
-    Gera um arquivo .txt sob demanda contendo o histórico das conversas.
-    O nome do arquivo é gerado dinamicamente com a data e hora da solicitação.
-    Exemplo: log_13-08-2026_11-54-25.txt
+    Comando EXCLUSIVO do Servidor (/log):
+    Cria um arquivo físico .txt contendo todo o histórico acumulado na memória.
+    O nome do arquivo inclui o dia, mês, ano, hora, minuto e segundo da solicitação.
+    Exemplo: log_13-08-2026_14-30-00.txt
     """
     agora = datetime.now()
-    nome_arquivo = agora.strftime("historico_chat_%d-%m-%Y_%H-%M-%S.txt")
+    nome_arquivo = agora.strftime("log_%d-%m-%Y_%H-%M-%S.txt")
 
+    # Copia o conteúdo da memória em uma operação segura
     with trava_historico:
         conteudo = "\n".join(historico_em_memoria)
 
     try:
+        # Modo "w" (write): cria um novo arquivo limpo com o nome gerado
         with open(nome_arquivo, "w", encoding="utf-8") as f:
             f.write(conteudo + ("\n" if conteudo else ""))
         print(f"\n[SERVIDOR] Log do chat gerado com sucesso! Arquivo: '{nome_arquivo}'\n")
@@ -71,28 +73,48 @@ def gerar_arquivo_log():
         print(f"\n[ERRO LOG] Não foi possível gerar o arquivo de log: {e}\n")
 
 
-def retransmitir_mensagem(mensagem_bytes, remetente_socket=None):
+def enviar_json(sock, dados_dict):
     """
-    Retransmite os bytes recebidos para todos os outros clientes conectados no servidor.
-    Se remetente_socket for None, envia a mensagem para TODOS os clientes.
+    Converte um dicionário Python em uma string JSON, adiciona um caractere
+    de quebra de linha ('\n') no final e envia como bytes pelo socket.
+    O '\n' serve como delimitador de mensagem no lado do receptor.
+    """
+    try:
+        payload = json.dumps(dados_dict) + "\n"
+        sock.sendall(payload.encode("utf-8"))
+    except:
+        pass  # Se falhar o envio (cliente desconectado), o tratamento é feito no loop principal
+
+
+def retransmitir_pacote(dados_dict, remetente_socket=None):
+    """
+    Transmite um pacote JSON para todos os clientes conectados.
+    Se 'remetente_socket' for informado, não reenvia para quem originou a mensagem.
     """
     with trava_clientes:
         for cliente in clientes:
-            # Não reenvia a mensagem de volta para o próprio cliente que a enviou
             if cliente["socket"] != remetente_socket:
-                try:
-                    # sendall() garante que todos os bytes sejam enviados,
-                    # tratando internamente o que o HOWTO chama de "não enviar tudo de uma vez"
-                    cliente["socket"].sendall(mensagem_bytes)
-                except:
-                    # Se falhar o envio, a limpeza da conexão é tratada na thread do cliente
-                    pass
+                enviar_json(cliente["socket"], dados_dict)
+
+
+def enviar_lista_usuarios_atualizada():
+    """
+    Notifica TODOS os clientes conectados enviando a lista atualizada de apelidos.
+    Crucial para atualizar a barra lateral de usuários na futura Interface Gráfica!
+    """
+    with trava_clientes:
+        lista_apelidos = [c["apelido"] for c in clientes]
+        for cliente in clientes:
+            enviar_json(cliente["socket"], {
+                "tipo": "lista_usuarios",
+                "usuarios": lista_apelidos
+            })
 
 
 def enviar_mensagens_servidor():
     """
-    Thread dedicada exclusivamente para permitir que o operador do servidor
-    digite comandos (/ajuda, /usuarios, /hora, /log) ou envie mensagens de broadcast.
+    Thread dedicada para capturar o teclado do operador do SERVIDOR.
+    Permite rodar comandos (/ajuda, /usuarios, /hora, /log) ou mandar avisos globais.
     """
     while True:
         try:
@@ -100,9 +122,7 @@ def enviar_mensagens_servidor():
             if not mensagem.strip():
                 continue
 
-            # =========================================================
-            # [MODIFICAÇÃO DO GRUPO] COMANDOS EXECUTADOS PELO SERVIDOR
-            # =========================================================
+            # Tratamento de comandos do operador do servidor
             if mensagem.startswith("/"):
                 comando_minusculo = mensagem.lower().strip()
 
@@ -119,8 +139,7 @@ def enviar_mensagens_servidor():
                 elif comando_minusculo in ["/usuarios", "/online"]:
                     with trava_clientes:
                         lista_apelidos = [c["apelido"] for c in clientes]
-                    total = len(lista_apelidos)
-                    print(f"[BOT/SERVIDOR]: Usuários online ({total}): {', '.join(lista_apelidos)}")
+                    print(f"[BOT/SERVIDOR]: Usuários online ({len(lista_apelidos)}): {', '.join(lista_apelidos)}")
 
                 elif comando_minusculo == "/hora":
                     hora_atual = datetime.now().strftime("%H:%M:%S - %d/%m/%Y")
@@ -134,13 +153,16 @@ def enviar_mensagens_servidor():
 
                 continue
 
-            # Se não for comando, envia mensagem pública como [SERVIDOR]
-            msg_formatada = f"[SERVIDOR]: {mensagem}\n"
+            # Caso não seja comando, transmite mensagem global como [SERVIDOR]
+            pacote = {
+                "tipo": "mensagem",
+                "remetente": "SERVIDOR",
+                "texto": mensagem,
+                "hora": datetime.now().strftime("%H:%M")
+            }
             print(f"[SERVIDOR]: {mensagem}")
             registrar_evento(f"[SERVIDOR]: {mensagem}")
-
-            # Transmite para TODOS os clientes conectados (remetente_socket=None)
-            retransmitir_mensagem(msg_formatada.encode("utf-8"), remetente_socket=None)
+            retransmitir_pacote(pacote)
 
         except:
             break
@@ -148,19 +170,23 @@ def enviar_mensagens_servidor():
 
 def tratar_cliente(socket_cliente, endereco_cliente):
     """
-    Esta função é executada em uma Thread (linha de execução) independente para cada cliente.
+    Thread dedicada para gerenciar a conexão individual de um cliente específico.
     """
     apelido = "Desconhecido"
+    buffer_dados = ""  # Buffer para acumular fragmentos de pacotes recebidos do TCP
+
     try:
-        # A PRIMEIRA mensagem enviada pelo cliente assim que ele conecta é o seu APELIDO
-        dados_apelido = socket_cliente.recv(TAMANHO_BUFFER)
-        if not dados_apelido:
+        # --- 1) APERTO DE MÃO (Handshake) ---
+        # A primeira mensagem enviada pelo cliente deve ser o JSON de conexão contendo o Apelido.
+        dados_iniciais = socket_cliente.recv(TAMANHO_BUFFER).decode("utf-8")
+        if not dados_iniciais:
             socket_cliente.close()
             return
 
-        apelido = dados_apelido.decode("utf-8").strip()
+        pacote_conexao = json.loads(dados_iniciais.strip())
+        apelido = pacote_conexao.get("apelido", "Desconhecido")
 
-        # Registra o cliente e seu apelido na lista do servidor
+        # Adiciona o cliente na lista global do servidor
         with trava_clientes:
             clientes.append({"socket": socket_cliente, "apelido": apelido})
 
@@ -168,184 +194,177 @@ def tratar_cliente(socket_cliente, endereco_cliente):
         print(msg_conexao)
         registrar_evento(f"EVENTO: {apelido} conectou-se a partir de {endereco_cliente}")
 
-        # Anuncia no chat que um novo usuário entrou
-        msg_entrada = f"[SERVIDOR] {apelido} entrou no bate-papo!\n"
-        retransmitir_mensagem(msg_entrada.encode("utf-8"), remetente_socket=socket_cliente)
+        # Anuncia para os outros usuários que alguém entrou
+        retransmitir_pacote({
+            "tipo": "sistema",
+            "texto": f"{apelido} entrou no bate-papo!"
+        }, remetente_socket=socket_cliente)
 
-        # 5) Laço principal de conversa: recebe uma mensagem, retransmite aos outros, repete.
-        conversando = True
-        while conversando:
-            # recv() também pode retornar menos bytes do que o esperado;
-            # para mensagens curtas de chat isso raramente é problema,
-            # mas o HOWTO do Python alerta sobre esse comportamento.
-            dados_recebidos = socket_cliente.recv(TAMANHO_BUFFER)
+        # Transmite a lista de usuários online atualizada para todos
+        enviar_lista_usuarios_atualizada()
 
-            # Segundo a documentação: quando recv() retorna 0 bytes,
-            # significa que o outro lado fechou a conexão.
-            if not dados_recebidos:
-                print(f"[SERVIDOR] Cliente {apelido} desconectou.")
-                registrar_evento(f"EVENTO: {apelido} desconectou-se.")
-                break
-
-            mensagem = dados_recebidos.decode("utf-8").strip()
-
-            if mensagem.lower() == "sair":
-                print(f"[SERVIDOR] Cliente {apelido} encerrou a conversa.")
-                registrar_evento(f"EVENTO: {apelido} encerrou a conversa via comando 'sair'.")
-                break
-
-            # =========================================================
-            # [MODIFICAÇÃO DO GRUPO] BOT DE COMANDOS E MENSAGEM PRIVADA
-            # Se a mensagem começar com '/', é tratada como um comando.
-            # =========================================================
-            if mensagem.startswith("/"):
-                comando_minusculo = mensagem.lower()
-
-                if comando_minusculo == "/ajuda":
-                    resposta_bot = (
-                        "\n--- COMANDOS DO BATE-PAPO ---\n"
-                        "/ajuda                 -> Mostra este menu de ajuda\n"
-                        "/usuarios              -> Lista os usuários conectados no momento\n"
-                        "/hora                  -> Exibe a hora exata do servidor\n"
-                        "/msg <apelido> <texto> -> Envia uma mensagem privada\n"
-                        "------------------------------------\n"
-                    )
-                    socket_cliente.sendall(resposta_bot.encode("utf-8"))
-
-                elif comando_minusculo in ["/usuarios", "/online"]:
-                    with trava_clientes:
-                        lista_apelidos = [c["apelido"] for c in clientes]
-                    total = len(lista_apelidos)
-                    resposta_bot = f"[BOT]: Usuários online ({total}): {', '.join(lista_apelidos)}\n"
-                    socket_cliente.sendall(resposta_bot.encode("utf-8"))
-
-                elif comando_minusculo == "/hora":
-                    hora_atual = datetime.now().strftime("%H:%M:%S - %d/%m/%Y")
-                    resposta_bot = f"[BOT]: Data e hora no servidor: {hora_atual}\n"
-                    socket_cliente.sendall(resposta_bot.encode("utf-8"))
-
-                # [MODIFICAÇÃO DO GRUPO] SISTEMA DE MENSAGEM PRIVADA (DM)
-                elif comando_minusculo.startswith("/msg "):
-                    partes = mensagem.split(" ", 2)
-                    if len(partes) < 3:
-                        resposta_bot = "[BOT]: Uso correto: /msg <apelido> <mensagem>\n"
-                        socket_cliente.sendall(resposta_bot.encode("utf-8"))
-                    else:
-                        destinatario_apelido = partes[1].strip()
-                        mensagem_privada = partes[2].strip()
-
-                        # Busca o socket do destinatário na lista de clientes
-                        socket_destinatario = None
-                        with trava_clientes:
-                            for c in clientes:
-                                if c["apelido"].lower() == destinatario_apelido.lower():
-                                    socket_destinatario = c["socket"]
-                                    break
-
-                        if socket_destinatario:
-                            # Envia apenas para o destinatário escolhido
-                            msg_envio = f"[{apelido} te enviou uma mensagem privada]: {mensagem_privada}\n"
-                            socket_destinatario.sendall(msg_envio.encode("utf-8"))
-
-                            # Confirma o envio para o remetente
-                            msg_confirma = f"[mensagem privada enviada para {destinatario_apelido}]: {mensagem_privada}\n"
-                            socket_cliente.sendall(msg_confirma.encode("utf-8"))
-
-                            # Registra log no console e na memória
-                            print(f"[LOG de mensagens privadas] {apelido} -> {destinatario_apelido}: {mensagem_privada}")
-                            registrar_evento(f"[LOG de mensagens privadas] {apelido} -> {destinatario_apelido}: {mensagem_privada}")
-                        else:
-                            resposta_bot = f"[BOT]: Usuário '{destinatario_apelido}' não foi encontrado ou está offline.\n"
-                            socket_cliente.sendall(resposta_bot.encode("utf-8"))
-
-                else:
-                    resposta_bot = f"[BOT]: Comando '{mensagem}' não reconhecido. Digite /ajuda para ver as opções.\n"
-                    socket_cliente.sendall(resposta_bot.encode("utf-8"))
-
-                # Pula o restante do laço para NÃO retransmitir a linha do comando aos outros clientes
-                continue
-
-            # Formata a mensagem normal com o Apelido do cliente que enviou
-            msg_formatada = f"[{apelido}]: {mensagem}\n"
+        # --- 2) LAÇO PRINCIPAL DE MENSAGENS ---
+        while True:
+            dados_brutos = socket_cliente.recv(TAMANHO_BUFFER).decode("utf-8")
             
-            # Exibe a mensagem recebida no console e armazena na memória
-            print(f"[{apelido}]: {mensagem}")
-            registrar_evento(f"[{apelido}]: {mensagem}")
+            # Quando recv() retorna vazio, significa que o cliente fechou a conexão
+            if not dados_brutos:
+                break
 
-            # Retransmite a mensagem formatada para todos os outros clientes
-            retransmitir_mensagem(msg_formatada.encode("utf-8"), remetente_socket=socket_cliente)
+            # Acumula no buffer local da thread para processar mensagem por mensagem (delimitada por \n)
+            buffer_dados += dados_brutos
+            
+            while "\n" in buffer_dados:
+                linha_json, buffer_dados = buffer_dados.split("\n", 1)
+                if not linha_json.strip():
+                    continue
+
+                # Converte a string JSON recebida de volta para Dicionário Python
+                pacote = json.loads(linha_json)
+                tipo_msg = pacote.get("tipo")
+
+                if tipo_msg == "mensagem":
+                    texto = pacote.get("texto", "").strip()
+
+                    # --- VERIFICAÇÃO DE COMANDOS DO CLIENTE ---
+                    if texto.startswith("/"):
+                        comando_minusculo = texto.lower()
+
+                        if comando_minusculo == "/ajuda":
+                            res = (
+                                "\n--- COMANDOS DO BATE-PAPO ---\n"
+                                "/ajuda                 -> Mostra este menu de ajuda\n"
+                                "/usuarios              -> Lista os usuários conectados no momento\n"
+                                "/hora                  -> Exibe a hora exata do servidor\n"
+                                "/msg <apelido> <texto> -> Envia uma mensagem privada\n"
+                                "------------------------------------\n"
+                            )
+                            enviar_json(socket_cliente, {"tipo": "sistema", "texto": res})
+
+                        elif comando_minusculo in ["/usuarios", "/online"]:
+                            with trava_clientes:
+                                lista_apelidos = [c["apelido"] for c in clientes]
+                            res = f"Usuários online ({len(lista_apelidos)}): {', '.join(lista_apelidos)}"
+                            enviar_json(socket_cliente, {"tipo": "sistema", "texto": res})
+
+                        elif comando_minusculo == "/hora":
+                            hora_atual = datetime.now().strftime("%H:%M:%S - %d/%m/%Y")
+                            enviar_json(socket_cliente, {"tipo": "sistema", "texto": f"Data e hora no servidor: {hora_atual}"})
+
+                        # --- TRATAMENTO DE MENSAGEM PRIVADA (/msg) ---
+                        elif comando_minusculo.startswith("/msg "):
+                            partes = texto.split(" ", 2)
+                            if len(partes) < 3:
+                                enviar_json(socket_cliente, {"tipo": "sistema", "texto": "Uso correto: /msg <apelido> <mensagem>"})
+                            else:
+                                destinatario_apelido = partes[1].strip()
+                                mensagem_privada = partes[2].strip()
+
+                                # Busca o socket do destinatário
+                                socket_destinatario = None
+                                with trava_clientes:
+                                    for c in clientes:
+                                        if c["apelido"].lower() == destinatario_apelido.lower():
+                                            socket_destinatario = c["socket"]
+                                            break
+
+                                if socket_destinatario:
+                                    hora_formatada = datetime.now().strftime("%H:%M")
+                                    
+                                    # Envia a mensagem privada apenas para o destinatário
+                                    enviar_json(socket_destinatario, {
+                                        "tipo": "msg_privada",
+                                        "remetente": apelido,
+                                        "texto": mensagem_privada,
+                                        "hora": hora_formatada
+                                    })
+                                    # Envia a confirmação para o remetente
+                                    enviar_json(socket_cliente, {
+                                        "tipo": "sistema",
+                                        "texto": f"[Privada para {destinatario_apelido}]: {mensagem_privada}"
+                                    })
+                                    
+                                    print(f"[LOG de mensagens privadas] {apelido} -> {destinatario_apelido}: {mensagem_privada}")
+                                    registrar_evento(f"[LOG de mensagens privadas] {apelido} -> {destinatario_apelido}: {mensagem_privada}")
+                                else:
+                                    enviar_json(socket_cliente, {"tipo": "sistema", "texto": f"Usuário '{destinatario_apelido}' não encontrado."})
+
+                        else:
+                            enviar_json(socket_cliente, {"tipo": "sistema", "texto": f"Comando '{texto}' não reconhecido."})
+
+                        # Pula a retransmissão pública pois foi um comando
+                        continue
+
+                    # Se o usuário digitou "sair", encerra o laço
+                    if texto.lower() == "sair":
+                        break
+
+                    # Retransmissão de MENSAGEM PÚBLICA NORMAL para todos os outros clientes
+                    hora_formatada = datetime.now().strftime("%H:%M")
+                    pacote_saida = {
+                        "tipo": "mensagem",
+                        "remetente": apelido,
+                        "texto": texto,
+                        "hora": hora_formatada
+                    }
+                    print(f"[{apelido}]: {texto}")
+                    registrar_evento(f"[{apelido}]: {texto}")
+                    retransmitir_pacote(pacote_saida, remetente_socket=socket_cliente)
 
     except Exception as e:
         print(f"[SERVIDOR] Erro na conexão com {apelido}: {e}")
-        registrar_evento(f"ERRO: Ocorreu uma falha na conexão com {apelido}: {e}")
 
     finally:
-        # Remove o cliente da lista global ao desconectar
+        # --- LIMPEZA AO DESCONECTAR ---
+        # Remove o cliente da lista global
         with trava_clientes:
             for c in clientes:
                 if c["socket"] == socket_cliente:
                     clientes.remove(c)
                     break
 
-        # 6) Fecha os sockets ao final. O HOWTO reforça: sempre feche
-        # explicitamente, não confie no coletor de lixo do Python para isso.
-        socket_cliente.close()
+        socket_cliente.close()  # Fecha o socket explicitamente
+        print(f"[SERVIDOR] Cliente {apelido} desconectou.")
+        registrar_evento(f"EVENTO: {apelido} desconectou-se.")
 
-        # Avisa aos demais participantes que o cliente saiu
-        msg_saida = f"[SERVIDOR] {apelido} saiu do bate-papo.\n"
-        retransmitir_mensagem(msg_saida.encode("utf-8"))
+        # Notifica os outros clientes e envia a lista de usuários online atualizada
+        retransmitir_pacote({"tipo": "sistema", "texto": f"{apelido} saiu do bate-papo."})
+        enviar_lista_usuarios_atualizada()
 
 
 def iniciar_servidor():
-    # 1) Cria o socket "tipo servidor".
-    #    AF_INET  -> estamos usando endereços IPv4
-    #    SOCK_STREAM -> estamos usando TCP (conexão confiável, com ordem garantida)
+    """
+    Função principal que inicializa o socket servidor TCP IPv4 e aguarda conexões.
+    """
     socket_servidor = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-    # Permite reiniciar o servidor rapidamente sem erro de "endereço em uso"
     socket_servidor.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-
-    # 2) Associa (bind) o socket a um endereço e porta específicos.
     socket_servidor.bind((HOST, PORTA))
-
-    # 3) Coloca o socket em modo de escuta, esperando conexões.
-    #    O número 5 é o tamanho máximo da fila de conexões pendentes.
     socket_servidor.listen(5)
+
     print(f"[SERVIDOR] Aguardando conexões em {HOST}:{PORTA}...\n")
     registrar_evento("--- SERVIDOR INICIADO ---")
 
-    # Inicia a Thread para escutar o teclado do Servidor e permitir envio de mensagens/comandos
-    thread_envio_servidor = threading.Thread(
-        target=enviar_mensagens_servidor,
-        daemon=True
-    )
-    thread_envio_servidor.start()
+    # Inicia a thread que escuta a digitação do operador no terminal do servidor
+    thread_envio = threading.Thread(target=enviar_mensagens_servidor, daemon=True)
+    thread_envio.start()
 
-    # 4) accept() bloqueia a execução até um cliente se conectar.
-    #    Retorna um NOVO socket (socket_cliente), específico para essa conversa,
-    #    e o endereço de quem conectou.
-    #    Em um servidor multi-cliente, colocamos accept() dentro de um laço
-    #    e criamos uma Thread separada para cada conexão aceita.
+    # Laço principal para aceitar múltiplos clientes simultâneos
     while True:
         try:
             socket_cliente, endereco_cliente = socket_servidor.accept()
-
-            # Dispara uma nova thread independente para processar a conversa deste cliente
+            # Para cada cliente que conecta, cria uma Thread independente
             thread_cliente = threading.Thread(
                 target=tratar_cliente,
                 args=(socket_cliente, endereco_cliente),
                 daemon=True
             )
             thread_cliente.start()
-
         except KeyboardInterrupt:
-            print("\n[SERVIDOR] Encerramento solicitado.")
+            print("\n[SERVIDOR] Encerramento solicitado via teclado.")
             registrar_evento("--- SERVIDOR ENCERRADO PELO OPERADOR ---")
             break
 
-    # 6) Fecha o socket principal do servidor ao encerrar o programa.
     socket_servidor.close()
-    print("[SERVIDOR] Conexão encerrada.")
 
 
 if __name__ == "__main__":

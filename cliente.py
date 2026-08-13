@@ -1,99 +1,111 @@
 """
-cliente.py
+cliente.py - Cliente Bate-Papo no Terminal com Protocolo JSON
 
-Base do CLIENTE do trabalho de Sockets (Semana 1).
-Referências utilizadas:
-- https://docs.python.org/pt-br/3/howto/sockets.html
-- https://docs.python.org/3/library/socket.html
-- https://docs.python.org/3/library/threading.html
-
-Digite "sair" a qualquer momento para encerrar a conversa.
+Este código permite testar a comunicação JSON antes de montarmos a Interface Gráfica!
 """
 
 import socket
 import threading
+import json
+import sys
 
-# Precisam ser os MESMOS valores usados no servidor.py
 HOST = "127.0.0.1"
 PORTA = 8080
-TAMANHO_BUFFER = 1024
 
 
-def escutar_servidor(socket_cliente, apelido):
+def receber_mensagens(sock):
     """
-    Thread dedicada exclusivamente a escutar e exibir as respostas e mensagens
-    vindas do servidor sem bloquear o input do usuário.
+    Thread dedicada exclusivamente a ESCUTAR os dados enviados pelo servidor.
+    Lê os bytes, remonta as mensagens separadas por '\n' e decodifica os pacotes JSON.
     """
+    buffer_dados = ""
     while True:
         try:
-            # Espera a resposta do servidor
-            dados_recebidos = socket_cliente.recv(TAMANHO_BUFFER)
-
-            # recv() retornando vazio (b"") = a outra ponta fechou a conexão
-            if not dados_recebidos:
-                print(f"\n[{apelido}] Servidor desconectou.")
+            dados_brutos = sock.recv(2048).decode("utf-8")
+            if not dados_brutos:
+                print("\n[SISTEMA] Conexão com o servidor foi encerrada.")
                 break
 
-            resposta = dados_recebidos.decode("utf-8")
-            print(f"\n{resposta}")
-            print(f"[{apelido}] Sua mensagem: ", end="", flush=True)
+            # Acumula fragmentos no buffer
+            buffer_dados += dados_brutos
 
-        except:
+            # Processa linha por linha delimitada por '\n'
+            while "\n" in buffer_dados:
+                linha_json, buffer_dados = buffer_dados.split("\n", 1)
+                if not linha_json.strip():
+                    continue
+
+                # Decodifica a string JSON recebida para um Dicionário Python
+                pacote = json.loads(linha_json)
+                tipo = pacote.get("tipo")
+
+                # Trata a exibição de acordo com o TIPO da mensagem recebida
+                if tipo == "mensagem":
+                    hora = pacote.get("hora", "")
+                    remetente = pacote.get("remetente", "")
+                    texto = pacote.get("texto", "")
+                    print(f"\n[{hora}] [{remetente}]: {texto}")
+
+                elif tipo == "msg_privada":
+                    hora = pacote.get("hora", "")
+                    remetente = pacote.get("remetente", "")
+                    texto = pacote.get("texto", "")
+                    print(f"\n[{hora}] [PRIVADO de {remetente}]: {texto}")
+
+                elif tipo == "sistema":
+                    print(f"\n[SISTEMA]: {pacote.get('texto')}")
+
+                elif tipo == "lista_usuarios":
+                    usuarios = pacote.get("usuarios", [])
+                    print(f"\n[SISTEMA - Usuários Online ({len(usuarios)})]: {', '.join(usuarios)}")
+
+        except Exception as e:
+            print(f"\n[ERRO]: Falha na recepção de dados: {e}")
             break
 
 
 def iniciar_cliente():
-    # Solicita o apelido do usuário antes de conectar
-    apelido = input("Digite seu apelido para entrar no chat: ").strip()
-    while not apelido:
-        apelido = input("O apelido não pode ser vazio! Digite seu apelido: ").strip()
-
-    # 1) Cria o socket "tipo cliente", igual ao do servidor:
-    #    IPv4 (AF_INET) + TCP (SOCK_STREAM)
-    socket_cliente = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
+    """
+    Função principal do cliente: estabelece conexão, envia o apelido inicial
+    e mantém o loop de digitação do teclado.
+    """
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        # 2) connect() estabelece a conexão com o servidor no endereço/porta indicados.
-        socket_cliente.connect((HOST, PORTA))
-        print(f"[{apelido}] Conectado ao servidor em {HOST}:{PORTA}")
+        sock.connect((HOST, PORTA))
+    except Exception as e:
+        print(f"Não foi possível conectar ao servidor {HOST}:{PORTA} -> {e}")
+        sys.exit()
 
-        # Envia o Apelido como a primeira mensagem de identificação para o servidor
-        # sendall() garante que todos os bytes sejam enviados,
-        # tratando internamente o que o HOWTO chama de "não enviar tudo de uma vez"
-        socket_cliente.sendall(apelido.encode("utf-8"))
+    # Pergunta o apelido ao usuário antes de liberar o chat
+    apelido = input("Digite seu apelido para entrar no chat: ").strip()
+    
+    # 1) Envia o primeiro pacote JSON de CONEXÃO notificando o apelido escolhido
+    pacote_conexao = json.dumps({"tipo": "conexao", "apelido": apelido}) + "\n"
+    sock.sendall(pacote_conexao.encode("utf-8"))
 
-        print(f'[{apelido}] Bem-vindo(a), {apelido}! Digite "sair" para encerrar a conversa.\n')
+    # 2) Dispara a thread em segundo plano para escutar respostas do servidor
+    thread_rec = threading.Thread(target=receber_mensagens, args=(sock,), daemon=True)
+    thread_rec.start()
 
-        # Inicia a Thread para escutar mensagens recebidas do servidor em segundo plano
-        thread_escuta = threading.Thread(
-            target=escutar_servidor,
-            args=(socket_cliente, apelido),
-            daemon=True
-        )
-        thread_escuta.start()
+    print("\nConectado com sucesso! Digite suas mensagens ou /ajuda para comandos.\n")
 
-        conversando = True
-        while conversando:
-            mensagem = input(f"[{apelido}] Sua mensagem: ")
-
-            if not mensagem.strip():
+    # 3) Loop principal para ler o teclado e enviar mensagens como JSON
+    while True:
+        try:
+            texto = input()
+            if not texto.strip():
                 continue
 
-            # sendall() garante que todos os bytes sejam enviados,
-            # tratando internamente o que o HOWTO chama de "não enviar tudo de uma vez"
-            socket_cliente.sendall(mensagem.encode("utf-8"))
+            # Monta o pacote de mensagem no formato JSON
+            pacote_envio = json.dumps({"tipo": "mensagem", "texto": texto}) + "\n"
+            sock.sendall(pacote_envio.encode("utf-8"))
 
-            if mensagem.lower() == "sair":
-                conversando = False
+            if texto.lower() == "sair":
                 break
+        except KeyboardInterrupt:
+            break
 
-    except Exception as e:
-        print(f"[{apelido}] Erro ao conectar: {e}")
-
-    finally:
-        # 3) Fecha o socket ao final da conversa.
-        socket_cliente.close()
-        print(f"[{apelido}] Conexão encerrada.")
+    sock.close()
 
 
 if __name__ == "__main__":
