@@ -6,13 +6,15 @@ Referências utilizadas:
 - https://docs.python.org/pt-br/3/howto/sockets.html
 - https://docs.python.org/3/library/socket.html
 - https://docs.python.org/3/library/threading.html
+- https://docs.python.org/3/library/datetime.html
 
-Nesta etapa, o código foi expandido de 1-para-1 para suportar múltiplos clientes
-simultâneos com gerenciamento de apelidos, threads e envio de mensagens pelo próprio servidor.
+Nesta etapa, o código foi expandido para incluir um Bot de Comandos interativos
+(/ajuda, /usuarios, /hora) processados diretamente pelo servidor.
 """
-#matheus lindo maravilhoso
+
 import socket
 import threading
+from datetime import datetime  # [MODIFICAÇÃO DO GRUPO] Usado para obter a hora atual do servidor
 
 # --- Configurações básicas ---
 # Segundo o HOWTO do Python, portas baixas (abaixo de 1024) costumam ser
@@ -49,7 +51,6 @@ def retransmitir_mensagem(mensagem_bytes, remetente_socket=None):
 
 def enviar_mensagens_servidor():
     """
-    [MODIFICAÇÃO DO GRUPO]
     Thread dedicada exclusivamente para permitir que o operador do servidor
     digite e envie mensagens de broadcast para todos os clientes conectados.
     """
@@ -102,13 +103,50 @@ def tratar_cliente(socket_cliente, endereco_cliente):
                 print(f"[SERVIDOR] Cliente {apelido} desconectou.")
                 break
 
-            mensagem = dados_recebidos.decode("utf-8")
+            mensagem = dados_recebidos.decode("utf-8").strip()
 
             if mensagem.lower() == "sair":
                 print(f"[SERVIDOR] Cliente {apelido} encerrou a conversa.")
                 break
 
-            # Formata a mensagem com o Apelido do cliente que enviou
+            # =========================================================
+            # [MODIFICAÇÃO DO GRUPO] BOT DE COMANDOS INTERATIVOS
+            # Se a mensagem começar com '/', é tratada como um comando
+            # e a resposta é enviada apenas para quem solicitou.
+            # =========================================================
+            if mensagem.startswith("/"):
+                comando = mensagem.lower()
+
+                if comando == "/ajuda":
+                    resposta_bot = (
+                        "\n--- COMANDOS DO BOT DO SERVIDOR ---\n"
+                        "/ajuda    -> Mostra este menu de ajuda\n"
+                        "/usuarios -> Lista os usuários conectados no momento\n"
+                        "/hora     -> Exibe a hora exata do servidor\n"
+                        "------------------------------------"
+                    )
+                    socket_cliente.sendall(resposta_bot.encode("utf-8"))
+
+                elif comando in ["/usuarios", "/online"]:
+                    with trava_clientes:
+                        lista_apelidos = [c["apelido"] for c in clientes]
+                    total = len(lista_apelidos)
+                    resposta_bot = f"[BOT]: Usuários online ({total}): {', '.join(lista_apelidos)}"
+                    socket_cliente.sendall(resposta_bot.encode("utf-8"))
+
+                elif comando == "/hora":
+                    hora_atual = datetime.now().strftime("%H:%M:%S - %d/%m/%Y")
+                    resposta_bot = f"[BOT]: Data e hora no servidor: {hora_atual}"
+                    socket_cliente.sendall(resposta_bot.encode("utf-8"))
+
+                else:
+                    resposta_bot = f"[BOT]: Comando '{mensagem}' não reconhecido. Digite /ajuda para ver as opções."
+                    socket_cliente.sendall(resposta_bot.encode("utf-8"))
+
+                # Pula o restante do laço para NÃO retransmitir a linha do comando aos outros clientes
+                continue
+
+            # Formata a mensagem normal com o Apelido do cliente que enviou
             msg_formatada = f"[{apelido}]: {mensagem}"
             
             # Exibe a mensagem recebida diretamente no console do servidor
@@ -154,7 +192,6 @@ def iniciar_servidor():
     socket_servidor.listen(5)
     print(f"[SERVIDOR] Aguardando conexões em {HOST}:{PORTA}...\n")
 
-    # [MODIFICAÇÃO DO GRUPO]
     # Inicia a Thread para escutar o teclado do Servidor e permitir envio de mensagens
     thread_envio_servidor = threading.Thread(
         target=enviar_mensagens_servidor,
