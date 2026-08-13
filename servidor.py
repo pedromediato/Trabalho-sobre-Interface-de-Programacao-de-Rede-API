@@ -8,13 +8,14 @@ Referências utilizadas:
 - https://docs.python.org/3/library/threading.html
 - https://docs.python.org/3/library/datetime.html
 
-Nesta etapa, o código foi expandido para incluir um Bot de Comandos interativos
-(/ajuda, /usuarios, /hora) processados diretamente pelo servidor.
+Nesta etapa, o código foi expandido para incluir:
+1) Bot de Comandos (/ajuda, /usuarios, /hora)
+2) Mensagens Privadas entre usuários (/msg <apelido> <mensagem>)
 """
 
 import socket
 import threading
-from datetime import datetime  # [MODIFICAÇÃO DO GRUPO] Usado para obter a hora atual do servidor
+from datetime import datetime  # Usado para obter a hora atual do servidor
 
 # --- Configurações básicas ---
 # Segundo o HOWTO do Python, portas baixas (abaixo de 1024) costumam ser
@@ -58,7 +59,7 @@ def enviar_mensagens_servidor():
         try:
             mensagem = input()
             if mensagem.strip():
-                msg_formatada = f"[SERVIDOR]: {mensagem}"
+                msg_formatada = f"[SERVIDOR]: {mensagem}\n"
                 # Transmite para TODOS os clientes conectados (remetente_socket=None)
                 retransmitir_mensagem(msg_formatada.encode("utf-8"), remetente_socket=None)
         except:
@@ -86,7 +87,7 @@ def tratar_cliente(socket_cliente, endereco_cliente):
         print(f"[SERVIDOR] Cliente conectado: {endereco_cliente} (Apelido: {apelido})")
 
         # Anuncia no chat que um novo usuário entrou
-        msg_entrada = f"[SERVIDOR] {apelido} entrou no bate-papo!"
+        msg_entrada = f"[SERVIDOR] {apelido} entrou no bate-papo!\n"
         retransmitir_mensagem(msg_entrada.encode("utf-8"), remetente_socket=socket_cliente)
 
         # 5) Laço principal de conversa: recebe uma mensagem, retransmite aos outros, repete.
@@ -110,47 +111,78 @@ def tratar_cliente(socket_cliente, endereco_cliente):
                 break
 
             # =========================================================
-            # [MODIFICAÇÃO DO GRUPO] BOT DE COMANDOS INTERATIVOS
-            # Se a mensagem começar com '/', é tratada como um comando
-            # e a resposta é enviada apenas para quem solicitou.
+            # [MODIFICAÇÃO DO GRUPO] BOT DE COMANDOS E MENSAGEM PRIVADA
+            # Se a mensagem começar com '/', é tratada como um comando.
             # =========================================================
             if mensagem.startswith("/"):
-                comando = mensagem.lower()
+                comando_minusculo = mensagem.lower()
 
-                if comando == "/ajuda":
+                if comando_minusculo == "/ajuda":
                     resposta_bot = (
-                        "\n--- COMANDOS DO BOT DO SERVIDOR ---\n"
-                        "/ajuda    -> Mostra este menu de ajuda\n"
-                        "/usuarios -> Lista os usuários conectados no momento\n"
-                        "/hora     -> Exibe a hora exata do servidor\n"
-                        "------------------------------------"
+                        "\n--- COMANDOS DO BATE-PAPO ---\n"
+                        "/ajuda                 -> Mostra este menu de ajuda\n"
+                        "/usuarios              -> Lista os usuários conectados no momento\n"
+                        "/hora                  -> Exibe a hora exata do servidor\n"
+                        "/msg <apelido> <texto> -> Envia uma mensagem privada\n"
+                        "------------------------------------\n"
                     )
                     socket_cliente.sendall(resposta_bot.encode("utf-8"))
 
-                elif comando in ["/usuarios", "/online"]:
+                elif comando_minusculo in ["/usuarios", "/online"]:
                     with trava_clientes:
                         lista_apelidos = [c["apelido"] for c in clientes]
                     total = len(lista_apelidos)
-                    resposta_bot = f"[BOT]: Usuários online ({total}): {', '.join(lista_apelidos)}"
+                    resposta_bot = f"[BOT]: Usuários online ({total}): {', '.join(lista_apelidos)}\n"
                     socket_cliente.sendall(resposta_bot.encode("utf-8"))
 
-                elif comando == "/hora":
+                elif comando_minusculo == "/hora":
                     hora_atual = datetime.now().strftime("%H:%M:%S - %d/%m/%Y")
-                    resposta_bot = f"[BOT]: Data e hora no servidor: {hora_atual}"
+                    resposta_bot = f"[BOT]: Data e hora no servidor: {hora_atual}\n"
                     socket_cliente.sendall(resposta_bot.encode("utf-8"))
+
+                # [MODIFICAÇÃO DO GRUPO] SISTEMA DE MENSAGEM PRIVADA (DM)
+                elif comando_minusculo.startswith("/msg "):
+                    partes = mensagem.split(" ", 2)
+                    if len(partes) < 3:
+                        resposta_bot = "[BOT]: Uso correto: /msg <apelido> <mensagem>\n"
+                        socket_cliente.sendall(resposta_bot.encode("utf-8"))
+                    else:
+                        destinatario_apelido = partes[1].strip()
+                        mensagem_privada = partes[2].strip()
+
+                        # Busca o socket do destinatário na lista de clientes
+                        socket_destinatario = None
+                        with trava_clientes:
+                            for c in clientes:
+                                if c["apelido"].lower() == destinatario_apelido.lower():
+                                    socket_destinatario = c["socket"]
+                                    break
+
+                        if socket_destinatario:
+                            # Envia apenas para o destinatário escolhido
+                            msg_envio = f"[{apelido} te enviou uma mensagem privada]: {mensagem_privada}\n"
+                            socket_destinatario.sendall(msg_envio.encode("utf-8"))
+
+                            # Confirma o envio para o remetente
+                            msg_confirma = f"[mensagem privada enviada para {destinatario_apelido}]: {mensagem_privada}\n"
+                            socket_cliente.sendall(msg_confirma.encode("utf-8"))
+                            print(f"[LOG de mensagens privadas] {apelido} -> {destinatario_apelido}: {mensagem_privada}")
+                        else:
+                            resposta_bot = f"[BOT]: Usuário '{destinatario_apelido}' não foi encontrado ou está offline.\n"
+                            socket_cliente.sendall(resposta_bot.encode("utf-8"))
 
                 else:
-                    resposta_bot = f"[BOT]: Comando '{mensagem}' não reconhecido. Digite /ajuda para ver as opções."
+                    resposta_bot = f"[BOT]: Comando '{mensagem}' não reconhecido. Digite /ajuda para ver as opções.\n"
                     socket_cliente.sendall(resposta_bot.encode("utf-8"))
 
                 # Pula o restante do laço para NÃO retransmitir a linha do comando aos outros clientes
                 continue
 
             # Formata a mensagem normal com o Apelido do cliente que enviou
-            msg_formatada = f"[{apelido}]: {mensagem}"
+            msg_formatada = f"[{apelido}]: {mensagem}\n"
             
             # Exibe a mensagem recebida diretamente no console do servidor
-            print(msg_formatada)
+            print(f"[{apelido}]: {mensagem}")
 
             # Retransmite a mensagem formatada para todos os outros clientes
             retransmitir_mensagem(msg_formatada.encode("utf-8"), remetente_socket=socket_cliente)
@@ -171,7 +203,7 @@ def tratar_cliente(socket_cliente, endereco_cliente):
         socket_cliente.close()
 
         # Avisa aos demais participantes que o cliente saiu
-        msg_saida = f"[SERVIDOR] {apelido} saiu do bate-papo."
+        msg_saida = f"[SERVIDOR] {apelido} saiu do bate-papo.\n"
         retransmitir_mensagem(msg_saida.encode("utf-8"))
 
 
