@@ -1,371 +1,294 @@
-"""
-servidor.py - Servidor Bate-Papo Multi-thread com Protocolo JSON
-
-Referências utilizadas:
-- https://docs.python.org/pt-br/3/howto/sockets.html
-- https://docs.python.org/3/library/socket.html
-- https://docs.python.org/3/library/threading.html
-- https://docs.python.org/3/library/json.html
-- https://docs.python.org/3/library/datetime.html
-
-Funcionalidades deste código:
-1) Comunicação estruturada via JSON (módulo 'json' nativo do Python).
-2) Envio delimitado por quebra de linha ('\n') para resolver o problema de colisão de pacotes TCP.
-3) Broadcast automático da lista de usuários online sempre que alguém entra ou sai.
-4) Bot de comandos para clientes e servidor (/ajuda, /usuarios, /hora).
-5) Comando exclusivo do servidor (/log) para exportar histórico sob demanda com nome timestamped.
-6) Suporte a mensagens privadas (/msg <apelido> <mensagem>).
-"""
+# ==============================================================================
+#                      SERVIDOR CENTRAL DE BATE-PAPO
+# ==============================================================================
 
 import socket
 import threading
 import json
-from datetime import datetime  # Para manipular datas e horários dos eventos
+from datetime import datetime
+import os
 
-# --- Configurações da Rede ---
-# Usa IP local (127.0.0.1) e uma porta alta (8080) fora da faixa reservada (0-1024).
 HOST = "127.0.0.1"
 PORTA = 8080
-TAMANHO_BUFFER = 2048  # Aumentado para suportar pacotes JSON maiores
 
-# --- Gerenciamento da Lista de Clientes Conectados ---
-# Armazena dicionários no formato: {"socket": socket_obj, "apelido": "Nome"}
-clientes = []
-trava_clientes = threading.Lock()  # Lock para evitar que duas threads alterem a lista juntas
+clientes = []                   
+historico_mensagens_id = {}     
 
-# --- Gerenciamento de Histórico de Log em Memória ---
-# As conversas ficam salvas na RAM e só vão para disco quando o servidor digita /log
-historico_em_memoria = []
-trava_historico = threading.Lock()  # Lock para acesso thread-safe ao histórico
+lock_clientes = threading.Lock()
+lock_historico = threading.Lock()
+lock_id = threading.Lock()
 
+contador_id_msg = 0
 
-def registrar_evento(texto):
-    """
-    Armazena qualquer mensagem ou evento na lista em memória,
-    acrescentando a data e hora formatadas [DD/MM/AAAA HH:MM:SS].
-    """
-    data_hora = datetime.now().strftime("[%d/%m/%Y %H:%M:%S]")
-    linha = f"{data_hora} {texto}"
-    with trava_historico:
-        historico_em_memoria.append(linha)
+TEXTO_AJUDA_SISTEMA = (
+    "\n--- 💡 GUIA DE COMANDOS DO CHAT ---\n"
+    "• /ajuda             -> Exibe esta lista de ajuda\n"
+    "• /clear             -> Limpa a tela desta janela\n"
+    "• /apagar <id>       -> Apaga sua mensagem pelo ID (ex: /apagar 3)\n"
+    "• Clique no Usuário  -> Abre janela de conversa privada\n"
+    "-----------------------------------"
+)
 
 
-def gerar_arquivo_log():
-    """
-    Comando EXCLUSIVO do Servidor (/log):
-    Cria um arquivo físico .txt contendo todo o histórico acumulado na memória.
-    O nome do arquivo inclui o dia, mês, ano, hora, minuto e segundo da solicitação.
-    Exemplo: log_13-08-2026_14-30-00.txt
-    """
-    agora = datetime.now()
-    nome_arquivo = agora.strftime("log_%d-%m-%Y_%H-%M-%S.txt")
+def gerar_novo_id():
+    global contador_id_msg
+    with lock_id:
+        contador_id_msg += 1
+        return contador_id_msg
 
-    # Copia o conteúdo da memória em uma operação segura
-    with trava_historico:
-        conteudo = "\n".join(historico_em_memoria)
 
+def registrar_evento(mensagem):
+    data_hora = datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
+    linha = f"{data_hora} {mensagem}"
+    print(linha)
     try:
-        # Modo "w" (write): cria um novo arquivo limpo com o nome gerado
-        with open(nome_arquivo, "w", encoding="utf-8") as f:
-            f.write(conteudo + ("\n" if conteudo else ""))
-        print(f"\n[SERVIDOR] Log do chat gerado com sucesso! Arquivo: '{nome_arquivo}'\n")
-    except Exception as e:
-        print(f"\n[ERRO LOG] Não foi possível gerar o arquivo de log: {e}\n")
+        with open("servidor_log.txt", "a", encoding="utf-8") as f:
+            f.write(linha + "\n")
+    except Exception:
+        pass
 
 
-def enviar_json(sock, dados_dict):
-    """
-    Converte um dicionário Python em uma string JSON, adiciona um caractere
-    de quebra de linha ('\n') no final e envia como bytes pelo socket.
-    O '\n' serve como delimitador de mensagem no lado do receptor.
-    """
+def enviar_json(socket_destino, pacote_dicionario):
     try:
-        payload = json.dumps(dados_dict) + "\n"
-        sock.sendall(payload.encode("utf-8"))
-    except:
-        pass  # Se falhar o envio (cliente desconectado), o tratamento é feito no loop principal
+        texto_json = json.dumps(pacote_dicionario) + "\n"
+        socket_destino.sendall(texto_json.encode("utf-8"))
+    except Exception:
+        pass
 
 
-def retransmitir_pacote(dados_dict, remetente_socket=None):
-    """
-    Transmite um pacote JSON para todos os clientes conectados.
-    Se 'remetente_socket' for informado, não reenvia para quem originou a mensagem.
-    """
-    with trava_clientes:
-        for cliente in clientes:
-            if cliente["socket"] != remetente_socket:
-                enviar_json(cliente["socket"], dados_dict)
+def retransmitir_pacote(pacote_dicionario):
+    """Envia um pacote para TODOS os clientes conectados (Público)."""
+    with lock_clientes:
+        for c in clientes:
+            enviar_json(c["socket"], pacote_dicionario)
 
 
 def enviar_lista_usuarios_atualizada():
-    """
-    Notifica TODOS os clientes conectados enviando a lista atualizada de apelidos.
-    Crucial para atualizar a barra lateral de usuários na futura Interface Gráfica!
-    """
-    with trava_clientes:
-        lista_apelidos = [c["apelido"] for c in clientes]
-        for cliente in clientes:
-            enviar_json(cliente["socket"], {
-                "tipo": "lista_usuarios",
-                "usuarios": lista_apelidos
-            })
+    with lock_clientes:
+        nomes_online = [c["apelido"] for c in clientes]
+    
+    pacote = {
+        "tipo": "lista_usuarios",
+        "usuarios": nomes_online
+    }
+    retransmitir_pacote(pacote)
+
+
+def processar_remocao_mensagem(id_msg, solicitante="SERVIDOR"):
+    with lock_historico:
+        msg_info = historico_mensagens_id.get(id_msg)
+        
+        if not msg_info:
+            return False, "Mensagem não encontrada ou já foi apagada."
+            
+        if solicitante != "SERVIDOR" and msg_info["remetente"] != solicitante:
+            return False, "Você só pode apagar as suas próprias mensagens!"
+            
+        del historico_mensagens_id[id_msg]
+
+    pacote_apagar = {
+        "tipo": "apagar_msg",
+        "id": id_msg,
+        "solicitante": solicitante
+    }
+    retransmitir_pacote(pacote_apagar)
+    registrar_evento(f"[APAGADA] Mensagem ID {id_msg} foi removida por '{solicitante}'.")
+    return True, "Mensagem apagada com sucesso."
 
 
 def enviar_mensagens_servidor():
-    """
-    Thread dedicada para capturar o teclado do operador do SERVIDOR.
-    Permite rodar comandos (/ajuda, /usuarios, /hora, /log) ou mandar avisos globais.
-    """
     while True:
         try:
-            mensagem = input()
-            if not mensagem.strip():
+            comando = input()
+            if not comando.strip():
                 continue
+                
+            cmd_lower = comando.lower()
 
-            # Tratamento de comandos do operador do servidor
-            if mensagem.startswith("/"):
-                comando_minusculo = mensagem.lower().strip()
+            if cmd_lower == "/clear":
+                os.system('cls' if os.name == 'nt' else 'clear')
+                print("[SERVIDOR] Tela do terminal limpa com sucesso.")
+                
+            elif cmd_lower == "/ajuda":
+                print("\n--- 💡 COMANDOS DO TERMINAL DO SERVIDOR ---")
+                print("/ajuda       -> Exibe este menu de ajuda")
+                print("/clear       -> Limpa o terminal do servidor")
+                print("/apagar <id> -> Apaga qualquer mensagem pelo ID")
+                print("<mensagem>   -> Envia aviso do sistema para todos")
+                print("-------------------------------------------\n")
 
-                if comando_minusculo == "/ajuda":
-                    print(
-                        "\n--- COMANDOS DO OPERADOR DO SERVIDOR ---\n"
-                        "/ajuda      -> Mostra este menu de ajuda no servidor\n"
-                        "/usuarios   -> Lista os usuários conectados no momento\n"
-                        "/hora       -> Exibe a hora exata do servidor\n"
-                        "/log        -> EXCLUSIVO: Gera o arquivo .txt com o histórico do chat\n"
-                        "-----------------------------------------\n"
-                    )
-
-                elif comando_minusculo in ["/usuarios", "/online"]:
-                    with trava_clientes:
-                        lista_apelidos = [c["apelido"] for c in clientes]
-                    print(f"[BOT/SERVIDOR]: Usuários online ({len(lista_apelidos)}): {', '.join(lista_apelidos)}")
-
-                elif comando_minusculo == "/hora":
-                    hora_atual = datetime.now().strftime("%H:%M:%S - %d/%m/%Y")
-                    print(f"[BOT/SERVIDOR]: Data e hora no servidor: {hora_atual}")
-
-                elif comando_minusculo == "/log":
-                    gerar_arquivo_log()
-
+            elif comando.startswith("/apagar "):
+                partes = comando.split()
+                if len(partes) >= 2 and partes[1].isdigit():
+                    id_para_apagar = int(partes[1])
+                    sucesso, retorno = processar_remocao_mensagem(id_para_apagar, solicitante="SERVIDOR")
+                    print(f"[SERVIDOR] {retorno}")
                 else:
-                    print(f"[BOT/SERVIDOR]: Comando '{mensagem}' não reconhecido. Digite /ajuda para ver as opções.")
-
-                continue
-
-            # Caso não seja comando, transmite mensagem global como [SERVIDOR]
-            pacote = {
-                "tipo": "mensagem",
-                "remetente": "SERVIDOR",
-                "texto": mensagem,
-                "hora": datetime.now().strftime("%H:%M")
-            }
-            print(f"[SERVIDOR]: {mensagem}")
-            registrar_evento(f"[SERVIDOR]: {mensagem}")
-            retransmitir_pacote(pacote)
-
-        except:
-            break
+                    print("[ERRO] Use o formato: /apagar <numero_do_id>")
+                    
+            else:
+                pacote_sistema = {
+                    "tipo": "sistema",
+                    "texto": f"[AVISO DO SERVIDOR]: {comando}"
+                }
+                retransmitir_pacote(pacote_sistema)
+                
+        except Exception as e:
+            print(f"[ERRO NO TERMINAL DO SERVIDOR]: {e}")
 
 
 def tratar_cliente(socket_cliente, endereco_cliente):
-    """
-    Thread dedicada para gerenciar a conexão individual de um cliente específico.
-    """
     apelido = "Desconhecido"
-    buffer_dados = ""  # Buffer para acumular fragmentos de pacotes recebidos do TCP
+    buffer_dados = ""
 
     try:
-        # --- 1) APERTO DE MÃO (Handshake) ---
-        # A primeira mensagem enviada pelo cliente deve ser o JSON de conexão contendo o Apelido.
-        dados_iniciais = socket_cliente.recv(TAMANHO_BUFFER).decode("utf-8")
-        if not dados_iniciais:
-            socket_cliente.close()
-            return
+        dados_brutos = socket_cliente.recv(2048).decode("utf-8")
+        if "\n" in dados_brutos:
+            primeira_linha = dados_brutos.split("\n")[0]
+            pacote_login = json.loads(primeira_linha)
+            apelido = pacote_login.get("apelido", f"User_{endereco_cliente[1]}").strip()
 
-        pacote_conexao = json.loads(dados_iniciais.strip())
-        apelido = pacote_conexao.get("apelido", "Desconhecido")
-
-        # Adiciona o cliente na lista global do servidor
-        with trava_clientes:
+        with lock_clientes:
             clientes.append({"socket": socket_cliente, "apelido": apelido})
 
-        msg_conexao = f"[SERVIDOR] Cliente conectado: {endereco_cliente} (Apelido: {apelido})"
-        print(msg_conexao)
-        registrar_evento(f"EVENTO: {apelido} conectou-se a partir de {endereco_cliente}")
-
-        # Anuncia para os outros usuários que alguém entrou
-        retransmitir_pacote({
-            "tipo": "sistema",
-            "texto": f"{apelido} entrou no bate-papo!"
-        }, remetente_socket=socket_cliente)
-
-        # Transmite a lista de usuários online atualizada para todos
+        registrar_evento(f"[CONEXÃO] '{apelido}' entrou vindo do endereço {endereco_cliente}.")
+        
+        enviar_json(socket_cliente, {"tipo": "sistema", "texto": f"Bem-vindo ao bate-papo, {apelido}! Digite /ajuda para ver os comandos."})
+        retransmitir_pacote({"tipo": "sistema", "texto": f"🟢 '{apelido}' entrou na sala."})
         enviar_lista_usuarios_atualizada()
 
-        # --- 2) LAÇO PRINCIPAL DE MENSAGENS ---
         while True:
-            dados_brutos = socket_cliente.recv(TAMANHO_BUFFER).decode("utf-8")
-            
-            # Quando recv() retorna vazio, significa que o cliente fechou a conexão
-            if not dados_brutos:
+            dados = socket_cliente.recv(2048).decode("utf-8")
+            if not dados:
                 break
 
-            # Acumula no buffer local da thread para processar mensagem por mensagem (delimitada por \n)
-            buffer_dados += dados_brutos
-            
+            buffer_dados += dados
+
             while "\n" in buffer_dados:
-                linha_json, buffer_dados = buffer_dados.split("\n", 1)
-                if not linha_json.strip():
+                linha, buffer_dados = buffer_dados.split("\n", 1)
+                if not linha.strip():
                     continue
 
-                # Converte a string JSON recebida de volta para Dicionário Python
-                pacote = json.loads(linha_json)
-                tipo_msg = pacote.get("tipo")
+                pacote = json.loads(linha)
+                tipo = pacote.get("tipo")
 
-                if tipo_msg == "mensagem":
+                # --- MENSAGEM PÚBLICA ---
+                if tipo == "mensagem":
                     texto = pacote.get("texto", "").strip()
 
-                    # --- VERIFICAÇÃO DE COMANDOS DO CLIENTE ---
-                    if texto.startswith("/"):
-                        comando_minusculo = texto.lower()
+                    if texto.lower() == "/ajuda":
+                        enviar_json(socket_cliente, {"tipo": "sistema", "texto": TEXTO_AJUDA_SISTEMA})
 
-                        if comando_minusculo == "/ajuda":
-                            res = (
-                                "\n--- COMANDOS DO BATE-PAPO ---\n"
-                                "/ajuda                 -> Mostra este menu de ajuda\n"
-                                "/usuarios              -> Lista os usuários conectados no momento\n"
-                                "/hora                  -> Exibe a hora exata do servidor\n"
-                                "/msg <apelido> <texto> -> Envia uma mensagem privada\n"
-                                "------------------------------------\n"
-                            )
-                            enviar_json(socket_cliente, {"tipo": "sistema", "texto": res})
-
-                        elif comando_minusculo in ["/usuarios", "/online"]:
-                            with trava_clientes:
-                                lista_apelidos = [c["apelido"] for c in clientes]
-                            res = f"Usuários online ({len(lista_apelidos)}): {', '.join(lista_apelidos)}"
-                            enviar_json(socket_cliente, {"tipo": "sistema", "texto": res})
-
-                        elif comando_minusculo == "/hora":
-                            hora_atual = datetime.now().strftime("%H:%M:%S - %d/%m/%Y")
-                            enviar_json(socket_cliente, {"tipo": "sistema", "texto": f"Data e hora no servidor: {hora_atual}"})
-
-                        # --- TRATAMENTO DE MENSAGEM PRIVADA (/msg) ---
-                        elif comando_minusculo.startswith("/msg "):
-                            partes = texto.split(" ", 2)
-                            if len(partes) < 3:
-                                enviar_json(socket_cliente, {"tipo": "sistema", "texto": "Uso correto: /msg <apelido> <mensagem>"})
-                            else:
-                                destinatario_apelido = partes[1].strip()
-                                mensagem_privada = partes[2].strip()
-
-                                # Busca o socket do destinatário
-                                socket_destinatario = None
-                                with trava_clientes:
-                                    for c in clientes:
-                                        if c["apelido"].lower() == destinatario_apelido.lower():
-                                            socket_destinatario = c["socket"]
-                                            break
-
-                                if socket_destinatario:
-                                    hora_formatada = datetime.now().strftime("%H:%M")
-                                    
-                                    # Envia a mensagem privada apenas para o destinatário
-                                    enviar_json(socket_destinatario, {
-                                        "tipo": "msg_privada",
-                                        "remetente": apelido,
-                                        "texto": mensagem_privada,
-                                        "hora": hora_formatada
-                                    })
-                                    # Envia a confirmação para o remetente
-                                    enviar_json(socket_cliente, {
-                                        "tipo": "sistema",
-                                        "texto": f"[Privada para {destinatario_apelido}]: {mensagem_privada}"
-                                    })
-                                    
-                                    print(f"[LOG de mensagens privadas] {apelido} -> {destinatario_apelido}: {mensagem_privada}")
-                                    registrar_evento(f"[LOG de mensagens privadas] {apelido} -> {destinatario_apelido}: {mensagem_privada}")
-                                else:
-                                    enviar_json(socket_cliente, {"tipo": "sistema", "texto": f"Usuário '{destinatario_apelido}' não encontrado."})
-
+                    elif texto.startswith("/apagar "):
+                        partes = texto.split()
+                        if len(partes) >= 2 and partes[1].isdigit():
+                            id_alvo = int(partes[1])
+                            sucesso, resposta = processar_remocao_mensagem(id_alvo, solicitante=apelido)
+                            if not sucesso:
+                                enviar_json(socket_cliente, {"tipo": "sistema", "texto": f"❌ {resposta}"})
                         else:
-                            enviar_json(socket_cliente, {"tipo": "sistema", "texto": f"Comando '{texto}' não reconhecido."})
+                            enviar_json(socket_cliente, {"tipo": "sistema", "texto": "Uso correto: /apagar <numero_id>"})
 
-                        # Pula a retransmissão pública pois foi um comando
+                    else:
+                        novo_id = gerar_novo_id()
+                        hora_atual = datetime.now().strftime("%H:%M")
+
+                        with lock_historico:
+                            historico_mensagens_id[novo_id] = {"remetente": apelido, "texto": texto}
+
+                        pacote_difusao = {
+                            "tipo": "mensagem",
+                            "id": novo_id,
+                            "hora": hora_atual,
+                            "remetente": apelido,
+                            "texto": texto
+                        }
+                        retransmitir_pacote(pacote_difusao)
+
+                # --- MENSAGEM PRIVADA ---
+                elif tipo == "msg_privada":
+                    destino = pacote.get("destino", "").strip()
+                    texto = pacote.get("texto", "").strip()
+                    hora_atual = datetime.now().strftime("%H:%M")
+
+                    if not texto or not destino:
                         continue
 
-                    # Se o usuário digitou "sair", encerra o laço
-                    if texto.lower() == "sair":
-                        break
+                    if texto.lower() == "/ajuda":
+                        enviar_json(socket_cliente, {"tipo": "sistema", "texto": TEXTO_AJUDA_SISTEMA})
+                        continue
 
-                    # Retransmissão de MENSAGEM PÚBLICA NORMAL para todos os outros clientes
-                    hora_formatada = datetime.now().strftime("%H:%M")
-                    pacote_saida = {
-                        "tipo": "mensagem",
+                    novo_id = gerar_novo_id()
+
+                    with lock_historico:
+                        historico_mensagens_id[novo_id] = {
+                            "remetente": apelido,
+                            "destino": destino,
+                            "texto": texto
+                        }
+
+                    socket_destino = None
+                    socket_remetente = socket_cliente
+
+                    with lock_clientes:
+                        for c in clientes:
+                            if c["apelido"].lower() == destino.lower():
+                                socket_destino = c["socket"]
+                                break
+
+                    pacote_privado = {
+                        "tipo": "msg_privada",
+                        "id": novo_id,
                         "remetente": apelido,
-                        "texto": texto,
-                        "hora": hora_formatada
+                        "destino": destino,
+                        "hora": hora_atual,
+                        "texto": texto
                     }
-                    print(f"[{apelido}]: {texto}")
-                    registrar_evento(f"[{apelido}]: {texto}")
-                    retransmitir_pacote(pacote_saida, remetente_socket=socket_cliente)
 
-    except Exception as e:
-        print(f"[SERVIDOR] Erro na conexão com {apelido}: {e}")
+                    if socket_destino:
+                        enviar_json(socket_destino, pacote_privado)
+                        if socket_destino != socket_remetente:
+                            enviar_json(socket_remetente, pacote_privado)
+                        registrar_evento(f"[PRIVADO ID {novo_id}] De '{apelido}' para '{destino}'")
+                    else:
+                        enviar_json(socket_cliente, {
+                            "tipo": "sistema",
+                            "texto": f"❌ O usuário '{destino}' não está online."
+                        })
+
+    except Exception:
+        pass
 
     finally:
-        # --- LIMPEZA AO DESCONECTAR ---
-        # Remove o cliente da lista global
-        with trava_clientes:
-            for c in clientes:
-                if c["socket"] == socket_cliente:
-                    clientes.remove(c)
-                    break
+        with lock_clientes:
+            clientes[:] = [c for c in clientes if c["socket"] != socket_cliente]
 
-        socket_cliente.close()  # Fecha o socket explicitamente
-        print(f"[SERVIDOR] Cliente {apelido} desconectou.")
-        registrar_evento(f"EVENTO: {apelido} desconectou-se.")
-
-        # Notifica os outros clientes e envia a lista de usuários online atualizada
-        retransmitir_pacote({"tipo": "sistema", "texto": f"{apelido} saiu do bate-papo."})
+        socket_cliente.close()
+        registrar_evento(f"[DESCONEXÃO] '{apelido}' saiu da sala.")
+        retransmitir_pacote({"tipo": "sistema", "texto": f"🔴 '{apelido}' saiu da sala."})
         enviar_lista_usuarios_atualizada()
 
 
 def iniciar_servidor():
-    """
-    Função principal que inicializa o socket servidor TCP IPv4 e aguarda conexões.
-    """
     socket_servidor = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     socket_servidor.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    socket_servidor.bind((HOST, PORTA))
-    socket_servidor.listen(5)
+    
+    try:
+        socket_servidor.bind((HOST, PORTA))
+        socket_servidor.listen()
+        print(f"=== SERVIDOR ATIVO EM {HOST}:{PORTA} ===")
+        registrar_evento("--- SERVIDOR INICIADO ---")
 
-    print(f"[SERVIDOR] Aguardando conexões em {HOST}:{PORTA}...\n")
-    registrar_evento("--- SERVIDOR INICIADO ---")
+        threading.Thread(target=enviar_mensagens_servidor, daemon=True).start()
 
-    # Inicia a thread que escuta a digitação do operador no terminal do servidor
-    thread_envio = threading.Thread(target=enviar_mensagens_servidor, daemon=True)
-    thread_envio.start()
+        while True:
+            sock_cliente, end_cliente = socket_servidor.accept()
+            threading.Thread(target=tratar_cliente, args=(sock_cliente, end_cliente), daemon=True).start()
 
-    # Laço principal para aceitar múltiplos clientes simultâneos
-    while True:
-        try:
-            socket_cliente, endereco_cliente = socket_servidor.accept()
-            # Para cada cliente que conecta, cria uma Thread independente
-            thread_cliente = threading.Thread(
-                target=tratar_cliente,
-                args=(socket_cliente, endereco_cliente),
-                daemon=True
-            )
-            thread_cliente.start()
-        except KeyboardInterrupt:
-            print("\n[SERVIDOR] Encerramento solicitado via teclado.")
-            registrar_evento("--- SERVIDOR ENCERRADO PELO OPERADOR ---")
-            break
-
-    socket_servidor.close()
-
+    except KeyboardInterrupt:
+        print("\n[SERVIDOR] Encerrado pelo teclado (Ctrl+C).")
+    finally:
+        socket_servidor.close()
 
 if __name__ == "__main__":
     iniciar_servidor()

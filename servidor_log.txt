@@ -1,0 +1,66 @@
+[2026-08-14 00:16:28] --- SERVIDOR INICIADO ---
+[2026-08-14 00:18:36] --- SERVIDOR INICIADO ---
+[2026-08-14 00:20:00] [CONEXÃO] 'luciano' entrou vindo do endereço ('127.0.0.1', 50629).
+[2026-08-14 00:20:25] [CONEXÃO] 'santiago' entrou vindo do endereço ('127.0.0.1', 50634).
+[2026-08-14 00:22:08] [APAGADA] Mensagem ID 1 foi removida por 'luciano'.
+[2026-08-14 00:27:11] [DESCONEXÃO] 'santiago' saiu da sala.
+[2026-08-14 00:27:12] [DESCONEXÃO] 'luciano' saiu da sala.
+[2026-08-14 00:28:30] --- SERVIDOR INICIADO ---
+[2026-08-14 00:28:57] [CONEXÃO] 'matheus' entrou vindo do endereço ('127.0.0.1', 59799).
+[2026-08-14 00:29:15] [CONEXÃO] 'lucas' entrou vindo do endereço ('127.0.0.1', 59800).
+[2026-08-14 00:31:17] [APAGADA] Mensagem ID 1 foi removida por 'lucas'.
+[2026-08-14 00:31:29] [DESCONEXÃO] 'lucas' saiu da sala.
+[2026-08-14 00:32:15] [DESCONEXÃO] 'matheus' saiu da sala.
+[2026-08-14 00:32:42] --- SERVIDOR INICIADO ---
+[2026-08-14 00:33:02] [CONEXÃO] 'matheus' entrou vindo do endereço ('127.0.0.1', 58783).
+[2026-08-14 00:33:15] [CONEXÃO] 'lucas' entrou vindo do endereço ('127.0.0.1', 58784).
+[2026-08-14 00:34:58] [APAGADA] Mensagem ID 3 foi removida por 'matheus'.
+[2026-08-14 00:39:25] [DESCONEXÃO] 'matheus' saiu da sala.
+[2026-08-14 00:39:29] [DESCONEXÃO] 'lucas' saiu da sala.
+[2026-08-14 00:41:59] --- SERVIDOR INICIADO ---
+[2026-08-14 00:42:58] [CONEXÃO] 'matheus' entrou vindo do endereço ('127.0.0.1', 51327).
+[2026-08-14 00:43:16] [CONEXÃO] 'oziel' entrou vindo do endereço ('127.0.0.1', 51328).
+[2026-08-14 00:45:33] [DESCONEXÃO] 'matheus' saiu da sala.
+[2026-08-14 00:45:34] [DESCONEXÃO] 'oziel' saiu da sala.
+[2026-08-14 00:46:05] --- SERVIDOR INICIADO ---
+[2026-08-14 00:46:50] [CONEXÃO] 'matheus' entrou vindo do endereço ('127.0.0.1', 56637).
+[2026-08-14 00:47:08] [CONEXÃO] 'oziel' entrou vindo do endereço ('127.0.0.1', 56638).
+[2026-08-14 00:47:19] [PRIVADO] De 'matheus' para 'oziel'
+[2026-08-14 00:47:42] [PRIVADO] De 'oziel' para 'matheus'
+[2026-08-14 00:48:01] [PRIVADO] De 'matheus' para 'oziel'
+[2026-08-14 00:49:12] [PRIVADO] De 'matheus' para 'oziel'
+[2026-08-14 00:49:25] [PRIVADO] De 'oziel' para 'matheus'
+[2026-08-14 00:49:53] [DESCONEXÃO] 'matheus' saiu da sala.
+[2026-08-14 00:49:55] [DESCONEXÃO] 'oziel' saiu da sala.
+[2026-08-14 00:50:14] [CONEXÃO] 'lula' entrou vindo do endereço ('127.0.0.1', 50997).
+[2026-08-14 00:50:52] [DESCONEXÃO] 'lula' saiu da sala.
+[2026-08-14 00:57:20] --- SERVIDOR INICIADO ---
+[2026-08-14 00:57:49] [CONEXÃO] 'matheus' entrou vindo do endereço ('127.0.0.1', 50358).
+[2026-08-14 00:58:24] [CONEXÃO] 'pedro' entrou vindo do endereço ('127.0.0.1', 58103).
+[2026-08-14 00:58:37] [PRIVADO] De 'matheus' para 'pedro'
+[2026-08-14 00:58:47] [PRIVADO] De 'pedro' para 'matheus'
+[2026-08-14 01:03:29] --- SERVIDOR INICIADO ---
+[2026-08-14 01:03:55] [CONEXÃO] 'matheus' entrou vindo do endereço ('127.0.0.1', 53911).
+[2026-08-14 01:04:08] [CONEXÃO] 'pedro' entrou vindo do endereço ('127.0.0.1', 53912).
+[2026-08-14 01:04:21] [PRIVADO] De 'matheus' para 'pedro'
+[2026-08-14 01:04:30] [PRIVADO] De 'pedro' para 'matheus'
+[2026-08-14 01:07:25] [DESCONEXÃO] 'pedro' saiu da sala.
+[2026-08-14 01:08:37] --- SERVIDOR INICIADO ---
+[2026-08-14 01:09:03] [CONEXÃO] 'mta' entrou vindo do endereço ('127.0.0.1', 59792).
+[2026-08-14 01:09:30] [CONEXÃO] 'ozi' entrou vindo do endereço ('127.0.0.1', 59793).
+[2026-08-14 01:09:42] [PRIVADO] De 'mta' para 'ozi'
+[2026-08-14 01:09:54] [PRIVADO] De 'ozi' para 'mta'
+[2026-08-14 01:12:53] [DESCONEXÃO] 'ozi' saiu da sala.
+[2026-08-14 01:12:54] [DESCONEXÃO] 'mta' saiu da sala.
+[2026-08-14 01:14:16] --- SERVIDOR INICIADO ---
+[2026-08-14 01:14:45] [CONEXÃO] 'matheus' entrou vindo do endereço ('127.0.0.1', 52194).
+[2026-08-14 01:14:58] [CONEXÃO] 'ozi' entrou vindo do endereço ('127.0.0.1', 52195).
+[2026-08-14 01:15:12] [PRIVADO ID 1] De 'matheus' para 'ozi'
+[2026-08-14 01:15:31] [PRIVADO ID 3] De 'matheus' para 'ozi'
+[2026-08-14 01:15:43] [APAGADA] Mensagem ID 1 foi removida por 'matheus'.
+[2026-08-14 01:16:22] [APAGADA] Mensagem ID 2 foi removida por 'ozi'.
+[2026-08-14 01:16:34] [APAGADA] Mensagem ID 3 foi removida por 'matheus'.
+[2026-08-14 01:16:38] [PRIVADO ID 4] De 'ozi' para 'matheus'
+[2026-08-14 01:16:50] [APAGADA] Mensagem ID 4 foi removida por 'ozi'.
+[2026-08-14 01:16:56] [DESCONEXÃO] 'ozi' saiu da sala.
+[2026-08-14 01:17:11] [DESCONEXÃO] 'matheus' saiu da sala.
