@@ -195,3 +195,34 @@
 [2026-08-17 13:02:23] [STATUS] 'etgas' alterou seu status para 'Online'.
 [2026-08-17 13:02:24] [DESCONEXÃO] 'afaf' saiu da sala.
 [2026-08-17 13:02:25] [DESCONEXÃO] 'etgas' saiu da sala.
+[2026-08-17 13:22:38] --- SERVIDOR INICIADO ---
+[2026-08-17 13:22:46] [CONEXÃO] 'oziel' entrou vindo do endereço ('127.0.0.1', 50491).
+[2026-08-17 13:22:50] [CONEXÃO] 'lulu' entrou vindo do endereço ('127.0.0.1', 50493).
+[2026-08-17 13:23:32] [STATUS] 'lulu' alterou seu status para 'Ocupado'.
+[2026-08-17 13:23:41] [DESCONEXÃO] 'oziel' saiu da sala.
+[2026-08-17 13:23:42] [DESCONEXÃO] 'lulu' saiu da sala.
+[2026-08-17 16:33:01] --- SERVIDOR INICIADO ---
+[2026-08-17 16:33:13] [CONEXÃO] 'jalin' entrou vindo do endereço ('127.0.0.1', 51698).
+[2026-08-17 16:33:13] [CONEXÃO] 'rabei' entrou vindo do endereço ('127.0.0.1', 51699).
+[2026-08-17 16:33:22] [ARQUIVO ID 1] 'jalin' enviou o arquivo 'Captura de Tela (47).png' para a sala.
+[2026-08-17 16:34:07] [DESCONEXÃO] 'rabei' saiu da sala.
+[2026-08-17 16:34:09] [DESCONEXÃO] 'jalin' saiu da sala.
+[2026-08-17 18:34:00] --- SERVIDOR INICIADO ---
+[2026-08-17 18:34:05] [CONEXÃO] 'jair' entrou vindo do endereço ('127.0.0.1', 54314).
+[2026-08-17 18:34:23] [DESCONEXÃO] 'jair' saiu da sala.
+[2026-08-17 18:39:15] --- SERVIDOR INICIADO ---
+[2026-08-17 18:39:21] [CONEXÃO] 'lucas' entrou vindo do endereço ('127.0.0.1', 59784).
+[2026-08-17 18:40:15] [DESCONEXÃO] 'lucas' saiu da sala.
+[2026-08-17 18:42:36] --- SERVIDOR INICIADO ---
+[2026-08-17 18:42:39] [CONEXÃO] 'sg' entrou vindo do endereço ('127.0.0.1', 52676).
+[2026-08-17 18:44:44] --- SERVIDOR INICIADO ---
+[2026-08-17 18:44:48] [CONEXÃO] 'kjlk' entrou vindo do endereço ('127.0.0.1', 54826).
+[2026-08-17 18:45:13] [DESCONEXÃO] 'kjlk' saiu da sala.
+[2026-08-17 18:47:53] --- SERVIDOR INICIADO ---
+[2026-08-17 18:47:59] [CONEXÃO] 'bruno' entrou vindo do endereço ('127.0.0.1', 62443).
+[2026-08-17 18:48:39] [DESCONEXÃO] 'bruno' saiu da sala.
+[2026-08-17 18:49:21] --- SERVIDOR INICIADO ---
+[2026-08-17 18:49:25] [CONEXÃO] 'fafa' entrou vindo do endereço ('127.0.0.1', 62445).
+[2026-08-17 18:49:27] [STATUS] 'fafa' alterou seu status para 'Ocupado'.
+[2026-08-17 18:49:28] [STATUS] 'fafa' alterou seu status para 'Online'.
+[2026-08-17 18:49:42] [DESCONEXÃO] 'fafa' saiu da sala.

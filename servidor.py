@@ -1,7 +1,3 @@
-# ==============================================================================
-#                         SERVIDOR CENTRAL DE BATE-PAPO
-# ==============================================================================
-
 import socket
 import threading
 import json
@@ -21,7 +17,7 @@ lock_id = threading.Lock()
 contador_id_msg = 0
 
 TEXTO_AJUDA_SISTEMA = (
-    "\n--- 💡 GUIA DE COMANDOS DO CHAT ---\n"
+    "\n--- GUIA DE COMANDOS DO CHAT ---\n"
     "• /ajuda             -> Exibe esta lista de ajuda\n"
     "• /clear             -> Limpa a tela desta janela\n"
     "• /apagar <id>       -> Apaga sua mensagem pelo ID (ex: /apagar 3)\n"
@@ -57,7 +53,6 @@ def enviar_json(socket_destino, pacote_dicionario):
 
 
 def retransmitir_pacote(pacote_dicionario, socket_remetente=None):
-    """Envia um pacote para clientes conectados. Permite ignorar o remetente."""
     with lock_clientes:
         for c in clientes:
             if socket_remetente is None or c["socket"] != socket_remetente:
@@ -113,7 +108,7 @@ def enviar_mensagens_servidor():
                 print("[SERVIDOR] Tela do terminal limpa com sucesso.")
                 
             elif cmd_lower == "/ajuda":
-                print("\n--- 💡 COMANDOS DO TERMINAL DO SERVIDOR ---")
+                print("\n--- COMANDOS DO TERMINAL DO SERVIDOR ---")
                 print("/ajuda       -> Exibe este menu de ajuda")
                 print("/clear       -> Limpa o terminal do servidor")
                 print("/apagar <id> -> Apaga qualquer mensagem pelo ID")
@@ -180,7 +175,6 @@ def tratar_cliente(socket_cliente, endereco_cliente):
                 pacote = json.loads(linha)
                 tipo = pacote.get("tipo")
 
-                # --- ATUALIZAÇÃO DE STATUS DO USUÁRIO ---
                 if tipo == "status":
                     novo_status = pacote.get("status", "Online")
                     with lock_clientes:
@@ -198,7 +192,6 @@ def tratar_cliente(socket_cliente, endereco_cliente):
                     enviar_lista_usuarios_atualizada()
                     registrar_evento(f"[STATUS] '{apelido}' alterou seu status para '{novo_status}'.")
 
-                # --- INDICADOR DE DIGITAÇÃO ---
                 elif tipo == "typing":
                     destino = pacote.get("destino")
                     pacote_typing = {
@@ -215,7 +208,6 @@ def tratar_cliente(socket_cliente, endereco_cliente):
                     else:
                         retransmitir_pacote(pacote_typing, socket_remetente=socket_cliente)
 
-                # --- MENSAGEM PÚBLICA ---
                 elif tipo == "mensagem":
                     texto = pacote.get("texto", "").strip()
 
@@ -248,7 +240,6 @@ def tratar_cliente(socket_cliente, endereco_cliente):
                         }
                         retransmitir_pacote(pacote_difusao)
 
-                # --- MENSAGEM PRIVADA ---
                 elif tipo == "msg_privada":
                     destino = pacote.get("destino", "").strip()
                     texto = pacote.get("texto", "").strip()
@@ -299,7 +290,6 @@ def tratar_cliente(socket_cliente, endereco_cliente):
                             "texto": f"❌ O usuário '{destino}' não está online."
                         })
 
-                # --- ENVIO DE ARQUIVO (PÚBLICO OU PRIVADO) ---
                 elif tipo == "arquivo":
                     nome_arquivo = pacote.get("nome_arquivo", "arquivo_desconhecido")
                     conteudo_b64 = pacote.get("conteudo", "")
