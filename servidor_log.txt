@@ -142,3 +142,12 @@
 [2026-08-17 12:02:26] [CONEXÃO] 'claudio' entrou vindo do endereço ('127.0.0.1', 55315).
 [2026-08-17 12:02:59] [ARQUIVO ID 6] 'claudio' enviou o arquivo 'Captura de tela 2024-04-08 231339.png' para a sala.
 [2026-08-17 12:03:20] [DESCONEXÃO] 'claudio' saiu da sala.
+[2026-08-17 12:12:55] --- SERVIDOR INICIADO ---
+[2026-08-17 12:13:12] [CONEXÃO] 'douglas' entrou vindo do endereço ('127.0.0.1', 58241).
+[2026-08-17 12:13:18] [CONEXÃO] 'serafin' entrou vindo do endereço ('127.0.0.1', 53575).
+[2026-08-17 12:13:49] [ARQUIVO ID 3] 'serafin' enviou o arquivo 'Captura de Tela (90).png' para a sala.
+[2026-08-17 12:14:02] [DESCONEXÃO] 'douglas' saiu da sala.
+[2026-08-17 12:14:03] [DESCONEXÃO] 'serafin' saiu da sala.
+[2026-08-17 12:17:44] --- SERVIDOR INICIADO ---
+[2026-08-17 12:17:58] --- SERVIDOR INICIADO ---
+[2026-08-17 12:18:09] --- SERVIDOR INICIADO ---
