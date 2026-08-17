@@ -64,3 +64,31 @@
 [2026-08-14 01:16:50] [APAGADA] Mensagem ID 4 foi removida por 'ozi'.
 [2026-08-14 01:16:56] [DESCONEXÃO] 'ozi' saiu da sala.
 [2026-08-14 01:17:11] [DESCONEXÃO] 'matheus' saiu da sala.
+[2026-08-16 20:20:12] --- SERVIDOR INICIADO ---
+[2026-08-16 20:20:36] [CONEXÃO] 'oziel' entrou vindo do endereço ('127.0.0.1', 61807).
+[2026-08-16 20:20:57] [ARQUIVO ID 1] 'oziel' enviou o arquivo 'alltags.html' para a sala.
+[2026-08-16 20:22:26] [CONEXÃO] 'dudu' entrou vindo do endereço ('127.0.0.1', 61825).
+[2026-08-16 20:22:41] [ARQUIVO PRIVADO ID 2] 'dudu' enviou 'Captura de tela 2026-08-04 215144.png' para 'oziel'.
+[2026-08-16 20:25:42] [DESCONEXÃO] 'dudu' saiu da sala.
+[2026-08-16 20:25:45] [DESCONEXÃO] 'oziel' saiu da sala.
+[2026-08-16 20:29:02] --- SERVIDOR INICIADO ---
+[2026-08-16 20:29:30] [CONEXÃO] 'dudu' entrou vindo do endereço ('127.0.0.1', 50162).
+[2026-08-16 20:29:44] --- SERVIDOR INICIADO ---
+[2026-08-16 20:30:02] [CONEXÃO] 'edu' entrou vindo do endereço ('127.0.0.1', 50167).
+[2026-08-16 20:30:13] [ARQUIVO PRIVADO ID 1] 'edu' enviou 'Captura de tela 2026-08-08 120817.png' para 'dudu'.
+[2026-08-16 20:31:23] [ARQUIVO ID 2] 'edu' enviou o arquivo 'Captura de tela 2026-08-08 120817.png' para a sala.
+[2026-08-16 20:31:32] [DESCONEXÃO] 'edu' saiu da sala.
+[2026-08-16 20:36:08] [ARQUIVO ID 3] 'dudu' enviou o arquivo 'Captura de tela 2026-08-04 215144.png' para a sala.
+[2026-08-16 20:36:24] [ARQUIVO ID 4] 'dudu' enviou o arquivo 'Captura de tela 2026-08-04 215144.png' para a sala.
+[2026-08-16 20:36:32] [DESCONEXÃO] 'dudu' saiu da sala.
+[2026-08-16 20:42:07] --- SERVIDOR INICIADO ---
+[2026-08-16 20:42:24] [CONEXÃO] 'de' entrou vindo do endereço ('127.0.0.1', 52271).
+[2026-08-16 20:42:59] [CONEXÃO] 'pepe' entrou vindo do endereço ('127.0.0.1', 52208).
+[2026-08-16 20:43:50] [APAGADA] Mensagem ID 1 foi removida por 'pepe'.
+[2026-08-16 20:44:07] [PRIVADO ID 2] De 'de' para 'pepe'
+[2026-08-16 20:44:18] [PRIVADO ID 3] De 'de' para 'pepe'
+[2026-08-16 20:44:23] [APAGADA] Mensagem ID 3 foi removida por 'de'.
+[2026-08-16 20:44:29] [PRIVADO ID 4] De 'de' para 'pepe'
+[2026-08-16 20:44:44] [APAGADA] Mensagem ID 4 foi removida por 'de'.
+[2026-08-16 21:07:39] [DESCONEXÃO] 'pepe' saiu da sala.
+[2026-08-16 21:07:40] [DESCONEXÃO] 'de' saiu da sala.

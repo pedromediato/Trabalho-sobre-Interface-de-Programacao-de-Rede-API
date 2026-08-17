@@ -5,9 +5,32 @@
 import socket
 import threading
 import json
+import os
+import sys
+import subprocess
+import base64
 from datetime import datetime
 import customtkinter as ctk
-from tkinter import messagebox
+from tkinter import messagebox, filedialog, Menu, simpledialog
+
+PASTA_ARQUIVOS_RECEBIDOS = "arquivos_recebidos"
+TAMANHO_MAXIMO_ARQUIVO_MB = 15
+
+
+def abrir_no_sistema(caminho):
+    """Abre um arquivo ou pasta usando o aplicativo padrão do sistema operacional."""
+    try:
+        if not os.path.exists(caminho):
+            messagebox.showerror("Erro", f"Caminho não encontrado:\n{caminho}")
+            return
+        if os.name == "nt":
+            os.startfile(caminho)
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", caminho])
+        else:
+            subprocess.Popen(["xdg-open", caminho])
+    except Exception as e:
+        messagebox.showerror("Erro", f"Não foi possível abrir:\n{e}")
 
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("dark-blue")
@@ -56,6 +79,29 @@ class JanelaChatPrivado(ctk.CTkToplevel):
             text_color=COR_ROXO_PRIVADO
         ).pack(side="left", padx=15)
 
+        ctk.CTkButton(
+            frame_topo,
+            text="📂",
+            font=("Segoe UI", 13),
+            fg_color="transparent",
+            hover_color=COR_INPUT,
+            width=32,
+            height=28,
+            command=lambda: abrir_no_sistema(os.path.abspath(PASTA_ARQUIVOS_RECEBIDOS))
+        ).pack(side="right", padx=(0, 10))
+
+        self.btn_menu_opcoes = ctk.CTkButton(
+            frame_topo,
+            text="⋮",
+            font=("Segoe UI", 16, "bold"),
+            fg_color="transparent",
+            hover_color=COR_INPUT,
+            width=32,
+            height=28,
+            command=self.abrir_menu_opcoes
+        )
+        self.btn_menu_opcoes.pack(side="right", padx=(0, 4))
+
         # Área de Histórico
         self.area_chat = ctk.CTkTextbox(
             self,
@@ -73,6 +119,7 @@ class JanelaChatPrivado(ctk.CTkToplevel):
         self.area_chat._textbox.tag_config("voce", foreground=COR_VERDE_VOCE, font=("Consolas", 12, "bold"))
         self.area_chat._textbox.tag_config("outro", foreground=COR_ROXO_PRIVADO, font=("Consolas", 12, "bold"))
         self.area_chat._textbox.tag_config("sistema", foreground=COR_AMARELO_SISTEMA, font=("Consolas", 11, "italic"))
+        self.area_chat._textbox.tag_config("link_arquivo", foreground=COR_AZUL_ACCENT, font=("Consolas", 12, "bold", "underline"))
 
         self.area_chat.configure(state="disabled")
 
@@ -105,6 +152,19 @@ class JanelaChatPrivado(ctk.CTkToplevel):
         )
         btn_enviar.pack(side="right")
 
+        btn_anexo = ctk.CTkButton(
+            frame_rodape,
+            text="📎",
+            font=("Segoe UI", 14),
+            fg_color=COR_INPUT,
+            hover_color=COR_HOVER_AZUL,
+            corner_radius=20,
+            width=40,
+            height=40,
+            command=lambda: self.app_principal.enviar_arquivo(destino=self.destinatario)
+        )
+        btn_anexo.pack(side="right", padx=(0, 8))
+
     def enviar_mensagem(self):
         texto = self.ent_mensagem.get().strip()
         if not texto:
@@ -134,6 +194,37 @@ class JanelaChatPrivado(ctk.CTkToplevel):
         self.app_principal.enviar_msg_privada(self.destinatario, texto)
         self.ent_mensagem.delete(0, "end")
 
+    def abrir_menu_opcoes(self):
+        menu = Menu(self, tearoff=0, bg=COR_PAINEL, fg=COR_TEXTO,
+                    activebackground=COR_AZUL_ACCENT, activeforeground=COR_TEXTO, bd=0)
+        menu.add_command(label="💡 Ajuda", command=self.executar_cmd_ajuda)
+        menu.add_command(label="🧹 Limpar Tela", command=self.executar_cmd_clear)
+        menu.add_command(label="🗑️ Apagar Mensagem por ID", command=self.executar_cmd_apagar)
+
+        x = self.btn_menu_opcoes.winfo_rootx()
+        y = self.btn_menu_opcoes.winfo_rooty() + self.btn_menu_opcoes.winfo_height()
+        try:
+            menu.tk_popup(x, y)
+        finally:
+            menu.grab_release()
+
+    def executar_cmd_ajuda(self):
+        self.exibir_sistema(TEXTO_AJUDA)
+
+    def executar_cmd_clear(self):
+        self.area_chat.configure(state="normal")
+        self.area_chat._textbox.delete("1.0", "end")
+        self.area_chat.configure(state="disabled")
+
+    def executar_cmd_apagar(self):
+        id_str = simpledialog.askstring("Apagar Mensagem", "Digite o ID da mensagem que deseja apagar:", parent=self)
+        if not id_str:
+            return
+        if id_str.strip().isdigit():
+            self.app_principal.enviar_comando_geral(f"/apagar {id_str.strip()}")
+        else:
+            messagebox.showwarning("Aviso", "Digite um número de ID válido.")
+
     def exibir_mensagem(self, id_msg, hora, remetente, texto):
         self.area_chat.configure(state="normal")
         
@@ -157,6 +248,23 @@ class JanelaChatPrivado(ctk.CTkToplevel):
             inicio, fim = intervalos[0], intervalos[1]
             self.area_chat._textbox.delete(inicio, fim)
             self.area_chat._textbox.insert(inicio, f"🚫 [Mensagem ID {id_msg} apagada por '{solicitante}']\n", "sistema")
+        self.area_chat.configure(state="disabled")
+
+    def exibir_arquivo(self, id_msg, hora, remetente, nome_arquivo, caminho_local):
+        self.area_chat.configure(state="normal")
+        nome_exibido = "Você" if remetente == self.app_principal.apelido else remetente
+        tag = "voce" if remetente == self.app_principal.apelido else "outro"
+        tag_link = f"link_arquivo_{id_msg}"
+
+        self.area_chat._textbox.insert("end", f"[{hora}] <{nome_exibido}> enviou um arquivo: ", tag)
+        self.area_chat._textbox.insert("end", f"📎 {nome_arquivo}", ("link_arquivo", tag_link))
+        self.area_chat._textbox.insert("end", "\n", tag)
+
+        self.area_chat._textbox.tag_bind(tag_link, "<Button-1>", lambda e, c=caminho_local: abrir_no_sistema(c))
+        self.area_chat._textbox.tag_bind(tag_link, "<Enter>", lambda e: self.area_chat._textbox.config(cursor="hand2"))
+        self.area_chat._textbox.tag_bind(tag_link, "<Leave>", lambda e: self.area_chat._textbox.config(cursor=""))
+
+        self.area_chat._textbox.see("end")
         self.area_chat.configure(state="disabled")
 
     def exibir_sistema(self, texto):
@@ -260,6 +368,31 @@ class ChatClienteGUI(ctk.CTk):
             frame_topo, text=f"🟢 Conectado como: {self.apelido}", font=("Segoe UI", 13, "bold"), text_color=COR_VERDE_VOCE
         ).pack(side="left", padx=20)
 
+        ctk.CTkButton(
+            frame_topo,
+            text="📂 Abrir Pasta de Arquivos",
+            font=("Segoe UI", 11, "bold"),
+            fg_color="transparent",
+            hover_color=COR_INPUT,
+            text_color=COR_TEXTO,
+            width=180,
+            height=32,
+            command=lambda: abrir_no_sistema(os.path.abspath(PASTA_ARQUIVOS_RECEBIDOS))
+        ).pack(side="right", padx=(0, 20))
+
+        self.btn_menu_opcoes = ctk.CTkButton(
+            frame_topo,
+            text="⋮",
+            font=("Segoe UI", 18, "bold"),
+            fg_color="transparent",
+            hover_color=COR_INPUT,
+            text_color=COR_TEXTO,
+            width=36,
+            height=32,
+            command=self.abrir_menu_opcoes
+        )
+        self.btn_menu_opcoes.pack(side="right", padx=(0, 4))
+
         frame_corpo = ctk.CTkFrame(self, fg_color="transparent")
         frame_corpo.pack(fill="both", expand=True, padx=15, pady=12)
 
@@ -278,6 +411,7 @@ class ChatClienteGUI(ctk.CTk):
         self.area_chat._textbox.tag_config("voce", foreground=COR_VERDE_VOCE, font=("Consolas", 12, "bold"))
         self.area_chat._textbox.tag_config("normal", foreground="#B9B4FA")
         self.area_chat._textbox.tag_config("sistema", foreground=COR_AMARELO_SISTEMA, font=("Consolas", 11, "italic"))
+        self.area_chat._textbox.tag_config("link_arquivo", foreground=COR_AZUL_ACCENT, font=("Consolas", 12, "bold", "underline"))
 
         self.area_chat.configure(state="disabled")
 
@@ -317,6 +451,19 @@ class ChatClienteGUI(ctk.CTk):
         )
         btn_enviar.pack(side="right")
 
+        btn_anexo = ctk.CTkButton(
+            frame_rodape,
+            text="📎 Arquivo",
+            font=("Segoe UI", 12, "bold"),
+            fg_color=COR_INPUT,
+            hover_color=COR_HOVER_AZUL,
+            corner_radius=25,
+            width=100,
+            height=46,
+            command=lambda: self.enviar_arquivo()
+        )
+        btn_anexo.pack(side="right", padx=(0, 8))
+
     def abrir_chat_privado(self, destinatario):
         if destinatario == self.apelido:
             return
@@ -326,6 +473,45 @@ class ChatClienteGUI(ctk.CTk):
         else:
             janela = JanelaChatPrivado(self, destinatario)
             self.janelas_privadas[destinatario] = janela
+
+    def abrir_menu_opcoes(self):
+        menu = Menu(self, tearoff=0, bg=COR_PAINEL, fg=COR_TEXTO,
+                    activebackground=COR_AZUL_ACCENT, activeforeground=COR_TEXTO, bd=0)
+        menu.add_command(label="💡 Ajuda", command=self.executar_cmd_ajuda)
+        menu.add_command(label="🧹 Limpar Tela", command=self.executar_cmd_clear)
+        menu.add_command(label="🗑️ Apagar Mensagem por ID", command=self.executar_cmd_apagar)
+        menu.add_separator()
+        menu.add_command(label="👥 Conversa Privada (clique no usuário)", command=self.executar_info_conversa_privada)
+
+        x = self.btn_menu_opcoes.winfo_rootx()
+        y = self.btn_menu_opcoes.winfo_rooty() + self.btn_menu_opcoes.winfo_height()
+        try:
+            menu.tk_popup(x, y)
+        finally:
+            menu.grab_release()
+
+    def executar_cmd_ajuda(self):
+        self.adicionar_texto_chat(TEXTO_AJUDA, tag="sistema")
+
+    def executar_cmd_clear(self):
+        self.area_chat.configure(state="normal")
+        self.area_chat._textbox.delete("1.0", "end")
+        self.area_chat.configure(state="disabled")
+
+    def executar_cmd_apagar(self):
+        id_str = simpledialog.askstring("Apagar Mensagem", "Digite o ID da mensagem que deseja apagar:", parent=self)
+        if not id_str:
+            return
+        if id_str.strip().isdigit():
+            self.enviar_comando_geral(f"/apagar {id_str.strip()}")
+        else:
+            messagebox.showwarning("Aviso", "Digite um número de ID válido.")
+
+    def executar_info_conversa_privada(self):
+        messagebox.showinfo(
+            "Conversa Privada",
+            "Clique no nome de um usuário na lista à direita para abrir uma janela de conversa privada com ele."
+        )
 
     def enviar_mensagem(self):
         texto = self.ent_mensagem.get().strip()
@@ -357,6 +543,39 @@ class ChatClienteGUI(ctk.CTk):
             self.sock.sendall(pacote.encode("utf-8"))
         except Exception as e:
             self.adicionar_texto_chat(f"[ERRO]: Falha ao enviar pacote: {e}", tag="sistema")
+
+    def enviar_arquivo(self, destino=None):
+        if not self.conectado:
+            return
+
+        caminho = filedialog.askopenfilename(title="Selecione o arquivo para enviar")
+        if not caminho:
+            return
+
+        try:
+            tamanho_bytes = os.path.getsize(caminho)
+            if tamanho_bytes > TAMANHO_MAXIMO_ARQUIVO_MB * 1024 * 1024:
+                messagebox.showerror("Arquivo muito grande", f"O arquivo excede o limite de {TAMANHO_MAXIMO_ARQUIVO_MB}MB.")
+                return
+
+            with open(caminho, "rb") as f:
+                conteudo_b64 = base64.b64encode(f.read()).decode("utf-8")
+
+            nome_arquivo = os.path.basename(caminho)
+
+            pacote = {
+                "tipo": "arquivo",
+                "nome_arquivo": nome_arquivo,
+                "tamanho": tamanho_bytes,
+                "conteudo": conteudo_b64
+            }
+            if destino:
+                pacote["destino"] = destino
+
+            self.sock.sendall((json.dumps(pacote) + "\n").encode("utf-8"))
+
+        except Exception as e:
+            messagebox.showerror("Erro", f"Falha ao enviar o arquivo:\n{e}")
 
     def enviar_msg_privada(self, destinatario, texto):
         if not self.conectado:
@@ -418,6 +637,17 @@ class ChatClienteGUI(ctk.CTk):
                         solicitante = pacote.get("solicitante")
                         self.apagar_mensagem_por_id(id_msg, solicitante)
 
+                    elif tipo == "arquivo":
+                        id_msg = pacote.get("id")
+                        remetente = pacote.get("remetente")
+                        destino = pacote.get("destino")
+                        hora = pacote.get("hora", "")
+                        nome_arquivo = pacote.get("nome_arquivo", "arquivo")
+                        conteudo_b64 = pacote.get("conteudo", "")
+
+                        self.after(0, lambda i=id_msg, r=remetente, d=destino, h=hora, n=nome_arquivo, c=conteudo_b64:
+                                   self.processar_arquivo_recebido(i, r, d, h, n, c))
+
                     elif tipo == "sistema":
                         self.adicionar_texto_chat(f"[SISTEMA]: {pacote.get('texto')}", tag="sistema")
 
@@ -429,6 +659,59 @@ class ChatClienteGUI(ctk.CTk):
                 if self.conectado:
                     self.adicionar_texto_chat(f"[ERRO DE REDE]: {e}", tag="sistema")
                 break
+
+    def processar_arquivo_recebido(self, id_msg, remetente, destino, hora, nome_arquivo, conteudo_b64):
+        try:
+            os.makedirs(PASTA_ARQUIVOS_RECEBIDOS, exist_ok=True)
+            caminho_salvo = os.path.join(PASTA_ARQUIVOS_RECEBIDOS, nome_arquivo)
+
+            # Evita sobrescrever arquivos com o mesmo nome
+            base, ext = os.path.splitext(caminho_salvo)
+            contador = 1
+            while os.path.exists(caminho_salvo):
+                caminho_salvo = f"{base}_{contador}{ext}"
+                contador += 1
+
+            with open(caminho_salvo, "wb") as f:
+                f.write(base64.b64decode(conteudo_b64))
+
+            caminho_salvo = os.path.abspath(caminho_salvo)
+
+        except Exception as e:
+            self.adicionar_texto_chat(f"[ERRO]: Falha ao salvar arquivo recebido: {e}", tag="sistema")
+            return
+
+        if destino:
+            # Arquivo privado -> mostra na janela de chat privado correspondente
+            outro_usuario = destino if remetente == self.apelido else remetente
+            if outro_usuario not in self.janelas_privadas:
+                self.abrir_chat_privado(outro_usuario)
+            janela = self.janelas_privadas.get(outro_usuario)
+            if janela:
+                janela.exibir_arquivo(id_msg, hora, remetente, nome_arquivo, caminho_salvo)
+        else:
+            # Arquivo público -> mostra no chat geral, com o nome clicável
+            self.adicionar_arquivo_chat_geral(id_msg, hora, remetente, nome_arquivo, caminho_salvo)
+
+    def adicionar_arquivo_chat_geral(self, id_msg, hora, remetente, nome_arquivo, caminho_salvo):
+        def _inserir():
+            nome_exibido = "Você" if remetente == self.apelido else remetente
+            tag = "voce" if remetente == self.apelido else "normal"
+            tag_link = f"link_arquivo_{id_msg}"
+
+            self.area_chat.configure(state="normal")
+            self.area_chat._textbox.insert("end", f"[{hora}] <{nome_exibido}> enviou um arquivo: ", tag)
+            self.area_chat._textbox.insert("end", f"📎 {nome_arquivo}", ("link_arquivo", tag_link))
+            self.area_chat._textbox.insert("end", "\n", tag)
+
+            self.area_chat._textbox.tag_bind(tag_link, "<Button-1>", lambda e, c=caminho_salvo: abrir_no_sistema(c))
+            self.area_chat._textbox.tag_bind(tag_link, "<Enter>", lambda e: self.area_chat._textbox.config(cursor="hand2"))
+            self.area_chat._textbox.tag_bind(tag_link, "<Leave>", lambda e: self.area_chat._textbox.config(cursor=""))
+
+            self.area_chat._textbox.see("end")
+            self.area_chat.configure(state="disabled")
+
+        self.after(0, _inserir)
 
     def processar_msg_privada_recebida(self, usuario_janela, hora, remetente, texto, id_msg):
         if usuario_janela not in self.janelas_privadas:

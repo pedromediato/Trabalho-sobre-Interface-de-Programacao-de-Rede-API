@@ -256,6 +256,59 @@ def tratar_cliente(socket_cliente, endereco_cliente):
                             "texto": f"❌ O usuário '{destino}' não está online."
                         })
 
+                # --- ENVIO DE ARQUIVO (PÚBLICO OU PRIVADO) ---
+                elif tipo == "arquivo":
+                    nome_arquivo = pacote.get("nome_arquivo", "arquivo_desconhecido")
+                    conteudo_b64 = pacote.get("conteudo", "")
+                    tamanho = pacote.get("tamanho", 0)
+                    destino = pacote.get("destino", "").strip()
+                    hora_atual = datetime.now().strftime("%H:%M")
+
+                    if not conteudo_b64:
+                        continue
+
+                    novo_id = gerar_novo_id()
+
+                    with lock_historico:
+                        historico_mensagens_id[novo_id] = {
+                            "remetente": apelido,
+                            "destino": destino if destino else None,
+                            "texto": f"[arquivo] {nome_arquivo}"
+                        }
+
+                    pacote_arquivo = {
+                        "tipo": "arquivo",
+                        "id": novo_id,
+                        "remetente": apelido,
+                        "nome_arquivo": nome_arquivo,
+                        "tamanho": tamanho,
+                        "conteudo": conteudo_b64,
+                        "hora": hora_atual
+                    }
+
+                    if destino:
+                        pacote_arquivo["destino"] = destino
+                        socket_destino_arquivo = None
+                        with lock_clientes:
+                            for c in clientes:
+                                if c["apelido"].lower() == destino.lower():
+                                    socket_destino_arquivo = c["socket"]
+                                    break
+
+                        if socket_destino_arquivo:
+                            enviar_json(socket_destino_arquivo, pacote_arquivo)
+                            if socket_destino_arquivo != socket_cliente:
+                                enviar_json(socket_cliente, pacote_arquivo)
+                            registrar_evento(f"[ARQUIVO PRIVADO ID {novo_id}] '{apelido}' enviou '{nome_arquivo}' para '{destino}'.")
+                        else:
+                            enviar_json(socket_cliente, {
+                                "tipo": "sistema",
+                                "texto": f"❌ O usuário '{destino}' não está online."
+                            })
+                    else:
+                        retransmitir_pacote(pacote_arquivo)
+                        registrar_evento(f"[ARQUIVO ID {novo_id}] '{apelido}' enviou o arquivo '{nome_arquivo}' para a sala.")
+
     except Exception:
         pass
 
