@@ -151,3 +151,47 @@
 [2026-08-17 12:17:44] --- SERVIDOR INICIADO ---
 [2026-08-17 12:17:58] --- SERVIDOR INICIADO ---
 [2026-08-17 12:18:09] --- SERVIDOR INICIADO ---
+[2026-08-17 12:27:19] --- SERVIDOR INICIADO ---
+[2026-08-17 12:27:29] [CONEXÃO] 'gustavo' entrou vindo do endereço ('127.0.0.1', 59309).
+[2026-08-17 12:27:38] [CONEXÃO] 'sergio' entrou vindo do endereço ('127.0.0.1', 59311).
+[2026-08-17 12:29:40] [DESCONEXÃO] 'sergio' saiu da sala.
+
+[2026-08-17 12:30:02] --- SERVIDOR INICIADO ---
+[2026-08-17 12:30:15] [CONEXÃO] 'lucas' entrou vindo do endereço ('127.0.0.1', 52043).
+[2026-08-17 12:30:26] [CONEXÃO] 'valeria' entrou vindo do endereço ('127.0.0.1', 52044).
+[2026-08-17 12:30:41] [DESCONEXÃO] 'valeria' saiu da sala.
+[2026-08-17 12:30:42] [DESCONEXÃO] 'lucas' saiu da sala.
+[2026-08-17 12:30:57] --- SERVIDOR INICIADO ---
+[2026-08-17 12:31:05] [CONEXÃO] 'lulu' entrou vindo do endereço ('127.0.0.1', 59026).
+[2026-08-17 12:31:10] [CONEXÃO] 'juca' entrou vindo do endereço ('127.0.0.1', 59027).
+[2026-08-17 12:31:23] [DESCONEXÃO] 'lulu' saiu da sala.
+[2026-08-17 12:31:23] [DESCONEXÃO] 'juca' saiu da sala.
+[2026-08-17 12:32:05] --- SERVIDOR INICIADO ---
+[2026-08-17 12:32:12] [CONEXÃO] 'serena' entrou vindo do endereço ('127.0.0.1', 62380).
+[2026-08-17 12:32:20] [CONEXÃO] 'lua' entrou vindo do endereço ('127.0.0.1', 62381).
+[2026-08-17 12:33:18] [CONEXÃO] 'cesar' entrou vindo do endereço ('127.0.0.1', 62382).
+[2026-08-17 12:33:51] [DESCONEXÃO] 'cesar' saiu da sala.
+[2026-08-17 12:33:52] [DESCONEXÃO] 'serena' saiu da sala.
+[2026-08-17 12:33:53] [DESCONEXÃO] 'lua' saiu da sala.
+[2026-08-17 12:38:04] --- SERVIDOR INICIADO ---
+[2026-08-17 12:46:45] --- SERVIDOR INICIADO ---
+[2026-08-17 12:46:54] [CONEXÃO] 'nicolas' entrou vindo do endereço ('127.0.0.1', 58943).
+[2026-08-17 12:47:10] [CONEXÃO] 'igor' entrou vindo do endereço ('127.0.0.1', 58945).
+[2026-08-17 12:47:53] [DESCONEXÃO] 'igor' saiu da sala.
+[2026-08-17 12:56:17] --- SERVIDOR INICIADO ---
+[2026-08-17 12:56:24] [CONEXÃO] 'afaf' entrou vindo do endereço ('127.0.0.1', 63274).
+[2026-08-17 12:56:25] [CONEXÃO] 'etgas' entrou vindo do endereço ('127.0.0.1', 63275).
+[2026-08-17 12:56:28] [STATUS] 'afaf' alterou seu status para 'Ausente'.
+[2026-08-17 12:56:29] [STATUS] 'afaf' alterou seu status para 'Ocupado'.
+[2026-08-17 12:56:30] [STATUS] 'afaf' alterou seu status para 'Online'.
+[2026-08-17 12:56:32] [STATUS] 'afaf' alterou seu status para 'Online'.
+[2026-08-17 12:56:35] [STATUS] 'afaf' alterou seu status para 'Ocupado'.
+[2026-08-17 12:56:39] [STATUS] 'afaf' alterou seu status para 'Ausente'.
+[2026-08-17 12:56:40] [STATUS] 'afaf' alterou seu status para 'Online'.
+[2026-08-17 12:56:42] [STATUS] 'afaf' alterou seu status para 'Ocupado'.
+[2026-08-17 12:56:43] [STATUS] 'afaf' alterou seu status para 'Online'.
+[2026-08-17 13:01:44] [STATUS] 'afaf' alterou seu status para 'Ausente'.
+[2026-08-17 13:01:46] [STATUS] 'etgas' alterou seu status para 'Ausente'.
+[2026-08-17 13:02:23] [STATUS] 'etgas' alterou seu status para 'Online'.
+[2026-08-17 13:02:24] [DESCONEXÃO] 'afaf' saiu da sala.
+[2026-08-17 13:02:25] [DESCONEXÃO] 'etgas' saiu da sala.

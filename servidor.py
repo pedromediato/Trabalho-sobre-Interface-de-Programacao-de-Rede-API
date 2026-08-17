@@ -1,5 +1,5 @@
 # ==============================================================================
-#                      SERVIDOR CENTRAL DE BATE-PAPO
+#                         SERVIDOR CENTRAL DE BATE-PAPO
 # ==============================================================================
 
 import socket
@@ -56,20 +56,23 @@ def enviar_json(socket_destino, pacote_dicionario):
         pass
 
 
-def retransmitir_pacote(pacote_dicionario):
-    """Envia um pacote para TODOS os clientes conectados (Público)."""
+def retransmitir_pacote(pacote_dicionario, socket_remetente=None):
+    """Envia um pacote para clientes conectados. Permite ignorar o remetente."""
     with lock_clientes:
         for c in clientes:
-            enviar_json(c["socket"], pacote_dicionario)
+            if socket_remetente is None or c["socket"] != socket_remetente:
+                enviar_json(c["socket"], pacote_dicionario)
 
 
 def enviar_lista_usuarios_atualizada():
     with lock_clientes:
         nomes_online = [c["apelido"] for c in clientes]
+        lista_detalhada = [{"apelido": c["apelido"], "status": c.get("status", "Online")} for c in clientes]
     
     pacote = {
         "tipo": "lista_usuarios",
-        "usuarios": nomes_online
+        "usuarios": nomes_online,
+        "usuarios_detalhado": lista_detalhada
     }
     retransmitir_pacote(pacote)
 
@@ -147,14 +150,19 @@ def tratar_cliente(socket_cliente, endereco_cliente):
             primeira_linha = dados_brutos.split("\n")[0]
             pacote_login = json.loads(primeira_linha)
             apelido = pacote_login.get("apelido", f"User_{endereco_cliente[1]}").strip()
+            status_inicial = pacote_login.get("status", "Online")
 
         with lock_clientes:
-            clientes.append({"socket": socket_cliente, "apelido": apelido})
+            clientes.append({
+                "socket": socket_cliente, 
+                "apelido": apelido,
+                "status": status_inicial
+            })
 
         registrar_evento(f"[CONEXÃO] '{apelido}' entrou vindo do endereço {endereco_cliente}.")
         
         enviar_json(socket_cliente, {"tipo": "sistema", "texto": f"Bem-vindo ao bate-papo, {apelido}! Digite /ajuda para ver os comandos."})
-        retransmitir_pacote({"tipo": "sistema", "texto": f"🟢 '{apelido}' entrou na sala."})
+        retransmitir_pacote({"tipo": "sistema", "texto": f"'{apelido}' entrou na sala."})
         enviar_lista_usuarios_atualizada()
 
         while True:
@@ -172,8 +180,43 @@ def tratar_cliente(socket_cliente, endereco_cliente):
                 pacote = json.loads(linha)
                 tipo = pacote.get("tipo")
 
+                # --- ATUALIZAÇÃO DE STATUS DO USUÁRIO ---
+                if tipo == "status":
+                    novo_status = pacote.get("status", "Online")
+                    with lock_clientes:
+                        for c in clientes:
+                            if c["socket"] == socket_cliente:
+                                c["status"] = novo_status
+                                break
+
+                    pacote_status = {
+                        "tipo": "status",
+                        "remetente": apelido,
+                        "status": novo_status
+                    }
+                    retransmitir_pacote(pacote_status)
+                    enviar_lista_usuarios_atualizada()
+                    registrar_evento(f"[STATUS] '{apelido}' alterou seu status para '{novo_status}'.")
+
+                # --- INDICADOR DE DIGITAÇÃO ---
+                elif tipo == "typing":
+                    destino = pacote.get("destino")
+                    pacote_typing = {
+                        "tipo": "typing",
+                        "remetente": apelido,
+                        "destino": destino
+                    }
+                    if destino:
+                        with lock_clientes:
+                            for c in clientes:
+                                if c["apelido"].lower() == destino.lower():
+                                    enviar_json(c["socket"], pacote_typing)
+                                    break
+                    else:
+                        retransmitir_pacote(pacote_typing, socket_remetente=socket_cliente)
+
                 # --- MENSAGEM PÚBLICA ---
-                if tipo == "mensagem":
+                elif tipo == "mensagem":
                     texto = pacote.get("texto", "").strip()
 
                     if texto.lower() == "/ajuda":
@@ -318,7 +361,7 @@ def tratar_cliente(socket_cliente, endereco_cliente):
 
         socket_cliente.close()
         registrar_evento(f"[DESCONEXÃO] '{apelido}' saiu da sala.")
-        retransmitir_pacote({"tipo": "sistema", "texto": f"🔴 '{apelido}' saiu da sala."})
+        retransmitir_pacote({"tipo": "sistema", "texto": f"'{apelido}' saiu da sala."})
         enviar_lista_usuarios_atualizada()
 
 

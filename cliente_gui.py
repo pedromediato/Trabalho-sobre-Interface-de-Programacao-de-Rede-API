@@ -10,6 +10,7 @@ import sys
 import subprocess
 import base64
 import shutil
+import time
 from datetime import datetime
 import customtkinter as ctk
 from tkinter import messagebox, filedialog, Menu, simpledialog
@@ -56,7 +57,7 @@ COR_AMARELO_SISTEMA  = "#FEE75C"
 COR_ROXO_PRIVADO     = "#A5B4FC"
 
 TEXTO_AJUDA = (
-    "\n--- 💡 GUIA DE COMANDOS DO CHAT ---\n"
+    "\n--- GUIA DE COMANDOS DO CHAT ---\n"
     "• /ajuda             -> Exibe esta lista de ajuda\n"
     "• /clear             -> Limpa a tela desta janela\n"
     "• /apagar <id>       -> Apaga uma mensagem enviada por você pelo ID (ex: /apagar 3)\n"
@@ -78,12 +79,10 @@ class ModalImagemDiscord(ctk.CTkToplevel):
         self.focus_force()
         self.grab_set()
 
-        # Eventos para fechar (ESC ou clicar no fundo escuro)
         self.bind("<Escape>", lambda e: self.fechar())
         self.bind("<Button-1>", lambda e: self.fechar())
 
-        # Informações no Canto Superior Esquerdo
-        texto_info = f"Enviado por {remetente} • {hora}" if remetente else ""
+        texto_info = f"Enviado por {remetente} - {hora}" if remetente else ""
         lbl_info = ctk.CTkLabel(
             self,
             text=texto_info,
@@ -93,7 +92,6 @@ class ModalImagemDiscord(ctk.CTkToplevel):
         lbl_info.place(relx=0.03, rely=0.04, anchor="nw")
         lbl_info.bind("<Button-1>", lambda e: "break")
 
-        # Imagem Centralizada
         try:
             screen_w = self.winfo_screenwidth()
             screen_h = self.winfo_screenheight()
@@ -113,10 +111,9 @@ class ModalImagemDiscord(ctk.CTkToplevel):
             self.fechar()
             return
 
-        # Botão Baixar Imagem (Canto Superior Direito)
         btn_download = ctk.CTkButton(
             self,
-            text="📥 Baixar Imagem",
+            text="Baixar Imagem",
             font=("Segoe UI", 12, "bold"),
             fg_color="#1E1E28",
             hover_color=COR_AZUL_ACCENT,
@@ -128,10 +125,9 @@ class ModalImagemDiscord(ctk.CTkToplevel):
         btn_download.place(relx=0.91, rely=0.04, anchor="e")
         btn_download.bind("<Button-1>", lambda e: "break")
 
-        # Botão Fechar (X)
         btn_fechar = ctk.CTkButton(
             self,
-            text="✕",
+            text="X",
             font=("Segoe UI", 16, "bold"),
             fg_color="#1E1E28",
             hover_color="#FF4444",
@@ -181,9 +177,11 @@ class JanelaChatPrivado(ctk.CTkToplevel):
         self.app_principal = app_principal
         self.destinatario = destinatario
         self.referencias_imagens = []
+        self.ultimo_envio_typing = 0
+        self.timer_typing = None
 
-        self.title(f"🔒 Chat Privado com {destinatario}")
-        self.geometry("480x520")
+        self.title(f"Chat Privado com {destinatario}")
+        self.geometry("480x540")
         self.configure(fg_color=COR_FUNDO_PRINCIPAL)
 
         self.protocol("WM_DELETE_WINDOW", self.fechar)
@@ -193,29 +191,29 @@ class JanelaChatPrivado(ctk.CTkToplevel):
         frame_topo.pack(fill="x", padx=10, pady=(10, 5))
         ctk.CTkLabel(
             frame_topo, 
-            text=f"💬 Chat Privado: {destinatario}", 
+            text=f"Chat Privado: {destinatario}", 
             font=("Segoe UI", 13, "bold"), 
             text_color=COR_ROXO_PRIVADO
         ).pack(side="left", padx=15)
 
         ctk.CTkButton(
             frame_topo,
-            text="📂",
-            font=("Segoe UI", 13),
+            text="Pasta",
+            font=("Segoe UI", 11, "bold"),
             fg_color="transparent",
             hover_color=COR_INPUT,
-            width=32,
+            width=50,
             height=28,
             command=lambda: abrir_no_sistema(os.path.abspath(PASTA_ARQUIVOS_RECEBIDOS))
         ).pack(side="right", padx=(0, 10))
 
         self.btn_menu_opcoes = ctk.CTkButton(
             frame_topo,
-            text="⋮",
-            font=("Segoe UI", 16, "bold"),
+            text="Opções",
+            font=("Segoe UI", 11, "bold"),
             fg_color="transparent",
             hover_color=COR_INPUT,
-            width=32,
+            width=60,
             height=28,
             command=self.abrir_menu_opcoes
         )
@@ -241,9 +239,25 @@ class JanelaChatPrivado(ctk.CTkToplevel):
 
         self.area_chat.configure(state="disabled")
 
+        # Indicador de Digitação
+        self.frame_typing = ctk.CTkFrame(self, fg_color="transparent", height=28)
+        self.frame_typing.pack(fill="x", padx=10, pady=(2, 4))
+
+        self.lbl_typing = ctk.CTkLabel(
+            self.frame_typing,
+            text="",
+            font=("Segoe UI", 12, "bold"),
+            text_color=COR_ROXO_PRIVADO,
+            fg_color="transparent",
+            corner_radius=10,
+            padx=12,
+            pady=3
+        )
+        self.lbl_typing.pack(side="left")
+
         # Rodapé
         frame_rodape = ctk.CTkFrame(self, fg_color="transparent")
-        frame_rodape.pack(fill="x", padx=10, pady=(5, 10))
+        frame_rodape.pack(fill="x", padx=10, pady=(0, 10))
 
         self.ent_mensagem = ctk.CTkEntry(
             frame_rodape,
@@ -256,6 +270,7 @@ class JanelaChatPrivado(ctk.CTkToplevel):
         )
         self.ent_mensagem.pack(side="left", fill="x", expand=True, padx=(0, 8))
         self.ent_mensagem.bind("<Return>", lambda event: self.enviar_mensagem())
+        self.ent_mensagem.bind("<Key>", self.notificar_digitacao)
 
         btn_enviar = ctk.CTkButton(
             frame_rodape,
@@ -272,16 +287,37 @@ class JanelaChatPrivado(ctk.CTkToplevel):
 
         btn_anexo = ctk.CTkButton(
             frame_rodape,
-            text="📎",
-            font=("Segoe UI", 14),
+            text="Arquivo",
+            font=("Segoe UI", 11, "bold"),
             fg_color=COR_INPUT,
             hover_color=COR_HOVER_AZUL,
             corner_radius=20,
-            width=40,
+            width=70,
             height=40,
             command=lambda: self.app_principal.enviar_arquivo(destino=self.destinatario)
         )
         btn_anexo.pack(side="right", padx=(0, 8))
+
+    def notificar_digitacao(self, event=None):
+        if event and event.keysym in ("Return", "BackSpace", "Tab", "Escape"):
+            return
+
+        agora = time.time()
+        if agora - self.ultimo_envio_typing > 1.5:
+            self.ultimo_envio_typing = agora
+            self.app_principal.enviar_evento_typing(destino=self.destinatario)
+
+    def limpar_indicador_digitacao(self):
+        self.lbl_typing.configure(text="", fg_color="transparent")
+
+    def exibir_digitando(self):
+        self.lbl_typing.configure(
+            text=f"{self.destinatario} está digitando...",
+            fg_color=COR_PAINEL
+        )
+        if self.timer_typing:
+            self.after_cancel(self.timer_typing)
+        self.timer_typing = self.after(2500, self.limpar_indicador_digitacao)
 
     def enviar_mensagem(self):
         texto = self.ent_mensagem.get().strip()
@@ -313,9 +349,9 @@ class JanelaChatPrivado(ctk.CTkToplevel):
     def abrir_menu_opcoes(self):
         menu = Menu(self, tearoff=0, bg=COR_PAINEL, fg=COR_TEXTO,
                     activebackground=COR_AZUL_ACCENT, activeforeground=COR_TEXTO, bd=0)
-        menu.add_command(label="💡 Ajuda", command=self.executar_cmd_ajuda)
-        menu.add_command(label="🧹 Limpar Tela", command=self.executar_cmd_clear)
-        menu.add_command(label="🗑️ Apagar Mensagem por ID", command=self.executar_cmd_apagar)
+        menu.add_command(label="Ajuda", command=self.executar_cmd_ajuda)
+        menu.add_command(label="Limpar Tela", command=self.executar_cmd_clear)
+        menu.add_command(label="Apagar Mensagem por ID", command=self.executar_cmd_apagar)
 
         x = self.btn_menu_opcoes.winfo_rootx()
         y = self.btn_menu_opcoes.winfo_rooty() + self.btn_menu_opcoes.winfo_height()
@@ -342,6 +378,7 @@ class JanelaChatPrivado(ctk.CTkToplevel):
             messagebox.showwarning("Aviso", "Digite um número de ID válido.")
 
     def exibir_mensagem(self, id_msg, hora, remetente, texto):
+        self.limpar_indicador_digitacao()
         self.area_chat.configure(state="normal")
         
         if remetente == self.app_principal.apelido:
@@ -363,10 +400,11 @@ class JanelaChatPrivado(ctk.CTkToplevel):
         if intervalos:
             inicio, fim = intervalos[0], intervalos[1]
             self.area_chat._textbox.delete(inicio, fim)
-            self.area_chat._textbox.insert(inicio, f"🚫 [Mensagem ID {id_msg} apagada por '{solicitante}']\n", "sistema")
+            self.area_chat._textbox.insert(inicio, f"[Mensagem ID {id_msg} apagada por '{solicitante}']\n", "sistema")
         self.area_chat.configure(state="disabled")
 
     def exibir_arquivo(self, id_msg, hora, remetente, nome_arquivo, caminho_local):
+        self.limpar_indicador_digitacao()
         self.area_chat.configure(state="normal")
         nome_exibido = "Você" if remetente == self.app_principal.apelido else remetente
         tag = "voce" if remetente == self.app_principal.apelido else "outro"
@@ -400,7 +438,7 @@ class JanelaChatPrivado(ctk.CTkToplevel):
         else:
             tag_link = f"link_arquivo_{id_msg}"
             self.area_chat._textbox.insert("end", f"[{hora}] <{nome_exibido}> enviou um arquivo: ", tag)
-            self.area_chat._textbox.insert("end", f"📎 {nome_arquivo}\n", ("link_arquivo", tag_link))
+            self.area_chat._textbox.insert("end", f"[Arquivo: {nome_arquivo}]\n", ("link_arquivo", tag_link))
 
             self.area_chat._textbox.tag_bind(
                 tag_link, "<Button-1>", 
@@ -436,15 +474,30 @@ class ChatClienteGUI(ctk.CTk):
         self.referencias_imagens = []
         self.modal_imagem = None
 
-        self.title("PyChat - Modern WhatsApp Style")
-        self.geometry("850x650")
+        self.ultimo_envio_typing_geral = 0
+        self.usuarios_digitando = {}
+        self.timer_typing_geral = None
+
+        # STATUS DE PRESENÇA E INATIVIDADE
+        self.status_atual = "Online"
+        self.status_manual = False
+        self.tempo_limite_inatividade = 300  # 5 minutos em segundos
+        self.ultima_atividade = time.time()
+        self.status_usuarios = {}
+
+        self.title("PyChat - Client")
+        self.geometry("850x660")
         self.configure(fg_color=COR_FUNDO_PRINCIPAL)
         
         self.protocol("WM_DELETE_WINDOW", self.fechar_conexao)
         self.criar_tela_login()
 
+        # Monitoramento global de atividade do usuário no sistema
+        self.bind_all("<Key>", self.registrar_atividade)
+        self.bind_all("<Button>", self.registrar_atividade)
+        self.bind_all("<Motion>", self.registrar_atividade)
+
     def abrir_visualizador_imagem(self, caminho_imagem, remetente="", hora=""):
-        """Garante a abertura de APENAS UM modal de imagem por vez."""
         if self.modal_imagem is not None:
             try:
                 if self.modal_imagem.winfo_exists():
@@ -463,7 +516,7 @@ class ChatClienteGUI(ctk.CTk):
         self.frame_login.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.9, relheight=0.9)
 
         ctk.CTkLabel(
-            self.frame_login, text="⚡ PyChat Login", font=("Segoe UI", 22, "bold"), text_color=COR_AZUL_ACCENT
+            self.frame_login, text="PyChat Login", font=("Segoe UI", 22, "bold"), text_color=COR_AZUL_ACCENT
         ).pack(pady=(25, 15))
 
         self.ent_host = self._criar_campo_input("IP do Servidor:", "127.0.0.1")
@@ -509,6 +562,7 @@ class ChatClienteGUI(ctk.CTk):
             self.sock.sendall(pacote_conexao.encode("utf-8"))
 
             self.conectado = True
+            self.status_usuarios[self.apelido] = "Online"
             self.container_login.destroy()
             self.criar_tela_chat()
 
@@ -522,36 +576,52 @@ class ChatClienteGUI(ctk.CTk):
         frame_topo.pack(fill="x", padx=15, pady=(15, 0))
         
         ctk.CTkLabel(
-            frame_topo, text=f"🟢 Conectado como: {self.apelido}", font=("Segoe UI", 13, "bold"), text_color=COR_VERDE_VOCE
-        ).pack(side="left", padx=20)
+            frame_topo, text=f"Conectado como: {self.apelido}", font=("Segoe UI", 13, "bold"), text_color=COR_VERDE_VOCE
+        ).pack(side="left", padx=(20, 10))
+
+        # Menu Suspenso para Seleção de Status
+        ctk.CTkLabel(frame_topo, text="Status:", font=("Segoe UI", 11), text_color="#A0A0B8").pack(side="left", padx=(10, 2))
+        
+        self.combo_status = ctk.CTkOptionMenu(
+            frame_topo,
+            values=["Online", "Ausente", "Ocupado"],
+            command=self.alterar_status_manual,
+            width=100,
+            height=28,
+            fg_color=COR_INPUT,
+            button_color=COR_AZUL_ACCENT,
+            button_hover_color=COR_HOVER_AZUL
+        )
+        self.combo_status.set("Online")
+        self.combo_status.pack(side="left", padx=(0, 15))
 
         ctk.CTkButton(
             frame_topo,
-            text="📂 Abrir Pasta de Arquivos",
+            text="Abrir Pasta de Arquivos",
             font=("Segoe UI", 11, "bold"),
             fg_color="transparent",
             hover_color=COR_INPUT,
             text_color=COR_TEXTO,
-            width=180,
+            width=160,
             height=32,
             command=lambda: abrir_no_sistema(os.path.abspath(PASTA_ARQUIVOS_RECEBIDOS))
         ).pack(side="right", padx=(0, 20))
 
         self.btn_menu_opcoes = ctk.CTkButton(
             frame_topo,
-            text="⋮",
-            font=("Segoe UI", 18, "bold"),
+            text="Opções",
+            font=("Segoe UI", 11, "bold"),
             fg_color="transparent",
             hover_color=COR_INPUT,
             text_color=COR_TEXTO,
-            width=36,
+            width=60,
             height=32,
             command=self.abrir_menu_opcoes
         )
         self.btn_menu_opcoes.pack(side="right", padx=(0, 4))
 
         frame_corpo = ctk.CTkFrame(self, fg_color="transparent")
-        frame_corpo.pack(fill="both", expand=True, padx=15, pady=12)
+        frame_corpo.pack(fill="both", expand=True, padx=15, pady=(12, 4))
 
         self.area_chat = ctk.CTkTextbox(
             frame_corpo,
@@ -580,6 +650,22 @@ class ChatClienteGUI(ctk.CTk):
         self.scroll_usuarios = ctk.CTkScrollableFrame(frame_sidebar, fg_color="transparent")
         self.scroll_usuarios.pack(fill="both", expand=True, padx=5, pady=5)
 
+        # Indicador de Digitação
+        self.frame_typing = ctk.CTkFrame(self, fg_color="transparent", height=28)
+        self.frame_typing.pack(fill="x", padx=15, pady=(2, 6))
+
+        self.lbl_typing = ctk.CTkLabel(
+            self.frame_typing,
+            text="",
+            font=("Segoe UI", 12, "bold"),
+            text_color=COR_ROXO_PRIVADO,
+            fg_color="transparent",
+            corner_radius=10,
+            padx=12,
+            pady=3
+        )
+        self.lbl_typing.pack(side="left")
+
         frame_rodape = ctk.CTkFrame(self, fg_color="transparent", height=50)
         frame_rodape.pack(fill="x", padx=15, pady=(0, 15))
 
@@ -594,6 +680,7 @@ class ChatClienteGUI(ctk.CTk):
         )
         self.ent_mensagem.pack(side="left", fill="x", expand=True, padx=(0, 10))
         self.ent_mensagem.bind("<Return>", lambda event: self.enviar_mensagem())
+        self.ent_mensagem.bind("<Key>", self.notificar_digitacao)
 
         btn_enviar = ctk.CTkButton(
             frame_rodape,
@@ -610,7 +697,7 @@ class ChatClienteGUI(ctk.CTk):
 
         btn_anexo = ctk.CTkButton(
             frame_rodape,
-            text="📎 Arquivo",
+            text="Arquivo",
             font=("Segoe UI", 12, "bold"),
             fg_color=COR_INPUT,
             hover_color=COR_HOVER_AZUL,
@@ -620,6 +707,120 @@ class ChatClienteGUI(ctk.CTk):
             command=lambda: self.enviar_arquivo()
         )
         btn_anexo.pack(side="right", padx=(0, 8))
+
+        self.verificar_inatividade()
+
+    # --- GERENCIAMENTO DE STATUS DE PRESENÇA ---
+    def registrar_atividade(self, event=None):
+        """Registra qualquer interação do usuário e reativa status Online se automático."""
+        self.ultima_atividade = time.time()
+        if not self.status_manual and self.status_atual == "Ausente":
+            self.definir_status("Online", e_manual=False)
+
+    def alterar_status_manual(self, escolha):
+        """Chamado quando o usuário escolhe uma opção no dropdown."""
+        if escolha == "Online":
+            self.definir_status("Online", e_manual=False)
+        else:
+            self.definir_status(escolha, e_manual=True)
+
+    def definir_status(self, novo_status, e_manual):
+        """Atualiza estado interno, interface local e notifica o servidor."""
+        self.status_atual = novo_status
+        self.status_manual = e_manual
+        
+        # Atualiza a lista lateral no próprio cliente imediatamente
+        self.status_usuarios[self.apelido] = novo_status
+        self.atualizar_lista_usuarios(list(self.status_usuarios.keys()))
+        
+        if self.combo_status.get() != novo_status:
+            self.combo_status.set(novo_status)
+
+        self.enviar_evento_status(novo_status)
+
+    def verificar_inatividade(self):
+        """Muda o status para Ausente se exceder o tempo limite de inatividade."""
+        if self.conectado and not self.status_manual and self.status_atual == "Online":
+            tempo_inativo = time.time() - self.ultima_atividade
+            if tempo_inativo >= self.tempo_limite_inatividade:
+                self.definir_status("Ausente", e_manual=False)
+
+        self.after(5000, self.verificar_inatividade)
+
+    def enviar_evento_status(self, status):
+        """Envia atualização de status para o servidor."""
+        if not self.conectado:
+            return
+        pacote = json.dumps({"tipo": "status", "status": status}) + "\n"
+        try:
+            self.sock.sendall(pacote.encode("utf-8"))
+        except Exception:
+            pass
+
+    # --- DIGITAÇÃO E MENSAGENS ---
+    def notificar_digitacao(self, event=None):
+        if event and event.keysym in ("Return", "BackSpace", "Tab", "Escape"):
+            return
+
+        agora = time.time()
+        if agora - self.ultimo_envio_typing_geral > 1.5:
+            self.ultimo_envio_typing_geral = agora
+            self.enviar_evento_typing()
+
+    def enviar_evento_typing(self, destino=None):
+        if not self.conectado:
+            return
+        pacote = {"tipo": "typing"}
+        if destino:
+            pacote["destino"] = destino
+        try:
+            self.sock.sendall((json.dumps(pacote) + "\n").encode("utf-8"))
+        except Exception:
+            pass
+
+    def atualizar_indicador_digitacao_geral(self):
+        agora = time.time()
+        self.usuarios_digitando = {
+            u: t for u, t in self.usuarios_digitando.items() if t > agora
+        }
+
+        lista_users = list(self.usuarios_digitando.keys())
+        qtd = len(lista_users)
+
+        if qtd == 0:
+            self.lbl_typing.configure(text="", fg_color="transparent")
+        else:
+            if qtd == 1:
+                texto = f"{lista_users[0]} está digitando..."
+            elif qtd == 2:
+                texto = f"{lista_users[0]} e {lista_users[1]} estão digitando..."
+            else:
+                texto = f"{lista_users[0]}, {lista_users[1]} e outros estão digitando..."
+
+            self.lbl_typing.configure(text=texto, fg_color=COR_PAINEL)
+
+        if self.timer_typing_geral:
+            self.after_cancel(self.timer_typing_geral)
+            self.timer_typing_geral = None
+
+        if self.usuarios_digitando:
+            proximo_expirar = min(self.usuarios_digitando.values())
+            tempo_restante = max(100, int((proximo_expirar - agora) * 1000))
+            self.timer_typing_geral = self.after(tempo_restante, self.atualizar_indicador_digitacao_geral)
+
+    def limpar_usuario_digitando(self, remetente):
+        if remetente in self.usuarios_digitando:
+            del self.usuarios_digitando[remetente]
+            self.atualizar_indicador_digitacao_geral()
+
+    def processar_indicador_digitacao(self, remetente, destino):
+        if destino:
+            janela = self.janelas_privadas.get(remetente)
+            if janela:
+                janela.exibir_digitando()
+        else:
+            self.usuarios_digitando[remetente] = time.time() + 2.5
+            self.atualizar_indicador_digitacao_geral()
 
     def abrir_chat_privado(self, destinatario):
         if destinatario == self.apelido:
@@ -634,11 +835,11 @@ class ChatClienteGUI(ctk.CTk):
     def abrir_menu_opcoes(self):
         menu = Menu(self, tearoff=0, bg=COR_PAINEL, fg=COR_TEXTO,
                     activebackground=COR_AZUL_ACCENT, activeforeground=COR_TEXTO, bd=0)
-        menu.add_command(label="💡 Ajuda", command=self.executar_cmd_ajuda)
-        menu.add_command(label="🧹 Limpar Tela", command=self.executar_cmd_clear)
-        menu.add_command(label="🗑️ Apagar Mensagem por ID", command=self.executar_cmd_apagar)
+        menu.add_command(label="Ajuda", command=self.executar_cmd_ajuda)
+        menu.add_command(label="Limpar Tela", command=self.executar_cmd_clear)
+        menu.add_command(label="Apagar Mensagem por ID", command=self.executar_cmd_apagar)
         menu.add_separator()
-        menu.add_command(label="👥 Conversa Privada (clique no usuário)", command=self.executar_info_conversa_privada)
+        menu.add_command(label="Conversa Privada (clique no usuário)", command=self.executar_info_conversa_privada)
 
         x = self.btn_menu_opcoes.winfo_rootx()
         y = self.btn_menu_opcoes.winfo_rooty() + self.btn_menu_opcoes.winfo_height()
@@ -747,6 +948,7 @@ class ChatClienteGUI(ctk.CTk):
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao enviar mensagem privada: {e}")
 
+    # --- THREAD DE RECEBIMENTO DE DADOS ---
     def receber_mensagens(self):
         buffer_dados = ""
         while self.conectado:
@@ -767,11 +969,25 @@ class ChatClienteGUI(ctk.CTk):
                     pacote = json.loads(linha_json)
                     tipo = pacote.get("tipo")
 
-                    if tipo == "mensagem":
+                    if tipo == "typing":
+                        remetente = pacote.get("remetente")
+                        destino = pacote.get("destino")
+                        self.after(0, lambda r=remetente, d=destino: self.processar_indicador_digitacao(r, d))
+
+                    elif tipo == "status":
+                        remetente = pacote.get("remetente")
+                        st = pacote.get("status")
+                        if remetente:
+                            self.status_usuarios[remetente] = st
+                            self.after(0, lambda: self.atualizar_lista_usuarios(list(self.status_usuarios.keys())))
+
+                    elif tipo == "mensagem":
                         id_msg = pacote.get("id")
                         hora = pacote.get("hora", "")
                         remetente = pacote.get("remetente", "")
                         texto = pacote.get("texto", "")
+
+                        self.after(0, lambda r=remetente: self.limpar_usuario_digitando(r))
 
                         msg_formatada = f"[{hora}] [ID: {id_msg}] <{remetente}>: {texto}"
                         tag_estilo = "voce" if remetente == self.apelido else "normal"
@@ -802,6 +1018,8 @@ class ChatClienteGUI(ctk.CTk):
                         nome_arquivo = pacote.get("nome_arquivo", "arquivo")
                         conteudo_b64 = pacote.get("conteudo", "")
 
+                        self.after(0, lambda r=remetente: self.limpar_usuario_digitando(r))
+
                         self.after(0, lambda i=id_msg, r=remetente, d=destino, h=hora, n=nome_arquivo, c=conteudo_b64:
                                    self.processar_arquivo_recebido(i, r, d, h, n, c))
 
@@ -810,6 +1028,9 @@ class ChatClienteGUI(ctk.CTk):
 
                     elif tipo == "lista_usuarios":
                         usuarios = pacote.get("usuarios", [])
+                        for u in usuarios:
+                            if u not in self.status_usuarios:
+                                self.status_usuarios[u] = "Online"
                         self.after(0, lambda u=usuarios: self.atualizar_lista_usuarios(u))
 
             except Exception as e:
@@ -849,6 +1070,7 @@ class ChatClienteGUI(ctk.CTk):
 
     def adicionar_arquivo_chat_geral(self, id_msg, hora, remetente, nome_arquivo, caminho_salvo):
         def _inserir():
+            self.limpar_usuario_digitando(remetente)
             nome_exibido = "Você" if remetente == self.apelido else remetente
             tag = "voce" if remetente == self.apelido else "normal"
 
@@ -883,7 +1105,7 @@ class ChatClienteGUI(ctk.CTk):
             else:
                 tag_link = f"link_arquivo_{id_msg}"
                 self.area_chat._textbox.insert("end", f"[{hora}] <{nome_exibido}> enviou um arquivo: ", tag)
-                self.area_chat._textbox.insert("end", f"📎 {nome_arquivo}\n", ("link_arquivo", tag_link))
+                self.area_chat._textbox.insert("end", f"[Arquivo: {nome_arquivo}]\n", ("link_arquivo", tag_link))
 
                 self.area_chat._textbox.tag_bind(
                     tag_link, "<Button-1>", 
@@ -924,7 +1146,7 @@ class ChatClienteGUI(ctk.CTk):
             if intervalos:
                 inicio, fim = intervalos[0], intervalos[1]
                 self.area_chat._textbox.delete(inicio, fim)
-                self.area_chat._textbox.insert(inicio, f"🚫 [Mensagem ID {id_msg} apagada por '{solicitante}']\n", "sistema")
+                self.area_chat._textbox.insert(inicio, f"[Mensagem ID {id_msg} apagada por '{solicitante}']\n", "sistema")
             self.area_chat.configure(state="disabled")
 
             for janela in list(self.janelas_privadas.values()):
@@ -947,11 +1169,12 @@ class ChatClienteGUI(ctk.CTk):
 
         for user in lista:
             e_voce = user == self.apelido
+            st = self.status_usuarios.get(user, "Online")
             
             if e_voce:
                 lbl = ctk.CTkLabel(
                     self.scroll_usuarios,
-                    text=f"• {user} (Você)",
+                    text=f"• {user} ({st})",
                     text_color=COR_VERDE_VOCE,
                     font=("Segoe UI", 12, "bold")
                 )
@@ -959,7 +1182,7 @@ class ChatClienteGUI(ctk.CTk):
             else:
                 btn_user = ctk.CTkButton(
                     self.scroll_usuarios,
-                    text=f"💬 {user}",
+                    text=f"{user} ({st})",
                     font=("Segoe UI", 12),
                     fg_color="transparent",
                     hover_color=COR_INPUT,
