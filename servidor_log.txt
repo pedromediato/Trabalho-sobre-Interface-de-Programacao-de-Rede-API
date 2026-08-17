@@ -92,3 +92,53 @@
 [2026-08-16 20:44:44] [APAGADA] Mensagem ID 4 foi removida por 'de'.
 [2026-08-16 21:07:39] [DESCONEXÃO] 'pepe' saiu da sala.
 [2026-08-16 21:07:40] [DESCONEXÃO] 'de' saiu da sala.
+[2026-08-17 10:54:47] --- SERVIDOR INICIADO ---
+[2026-08-17 10:55:24] [CONEXÃO] 'p3zio' entrou vindo do endereço ('127.0.0.1', 61534).
+[2026-08-17 10:55:35] [CONEXÃO] 'jalin_rabei' entrou vindo do endereço ('127.0.0.1', 61535).
+[2026-08-17 10:55:43] [PRIVADO ID 1] De 'p3zio' para 'jalin_rabei'
+[2026-08-17 10:55:49] [PRIVADO ID 2] De 'jalin_rabei' para 'p3zio'
+[2026-08-17 10:55:53] [PRIVADO ID 3] De 'jalin_rabei' para 'p3zio'
+[2026-08-17 11:00:14] [ARQUIVO ID 4] 'jalin_rabei' enviou o arquivo 'Screenshot 2025-12-24 152335.png' para a sala.
+[2026-08-17 11:09:41] --- SERVIDOR INICIADO ---
+[2026-08-17 11:10:01] [CONEXÃO] 'kaio jorge' entrou vindo do endereço ('127.0.0.1', 65221).
+[2026-08-17 11:10:44] [ARQUIVO ID 1] 'kaio jorge' enviou o arquivo 'Captura de tela 2024-05-24 001126.png' para a sala.
+[2026-08-17 11:18:55] --- SERVIDOR INICIADO ---
+[2026-08-17 11:19:27] [CONEXÃO] 'polonio' entrou vindo do endereço ('127.0.0.1', 58993).
+[2026-08-17 11:19:43] [ARQUIVO ID 1] 'polonio' enviou o arquivo 'Captura de Tela (15).png' para a sala.
+[2026-08-17 11:20:12] [DESCONEXÃO] 'polonio' saiu da sala.
+[2026-08-17 11:23:55] --- SERVIDOR INICIADO ---
+[2026-08-17 11:24:12] [CONEXÃO] 'pedro' entrou vindo do endereço ('127.0.0.1', 49225).
+[2026-08-17 11:24:35] [ARQUIVO ID 2] 'pedro' enviou o arquivo 'Captura de Tela (101).png' para a sala.
+[2026-08-17 11:25:11] [DESCONEXÃO] 'pedro' saiu da sala.
+[2026-08-17 11:30:01] --- SERVIDOR INICIADO ---
+[2026-08-17 11:30:16] [CONEXÃO] 'pedro' entrou vindo do endereço ('127.0.0.1', 64469).
+[2026-08-17 11:30:25] [ARQUIVO ID 1] 'pedro' enviou o arquivo 'Captura de Tela (4).png' para a sala.
+[2026-08-17 11:30:30] [DESCONEXÃO] 'pedro' saiu da sala.
+[2026-08-17 11:35:24] [CONEXÃO] 'pedro' entrou vindo do endereço ('127.0.0.1', 59276).
+[2026-08-17 11:35:31] [ARQUIVO ID 2] 'pedro' enviou o arquivo 'Captura de Tela (2).png' para a sala.
+[2026-08-17 11:35:46] [DESCONEXÃO] 'pedro' saiu da sala.
+[2026-08-17 11:39:05] [CONEXÃO] 'AURELIO' entrou vindo do endereço ('127.0.0.1', 61528).
+[2026-08-17 11:39:09] [ARQUIVO ID 3] 'AURELIO' enviou o arquivo 'Captura de Tela (2).png' para a sala.
+[2026-08-17 11:39:16] [DESCONEXÃO] 'AURELIO' saiu da sala.
+[2026-08-17 11:39:29] [CONEXÃO] 'QERTQRF' entrou vindo do endereço ('127.0.0.1', 61532).
+[2026-08-17 11:45:58] --- SERVIDOR INICIADO ---
+[2026-08-17 11:46:14] [CONEXÃO] 'uigh' entrou vindo do endereço ('127.0.0.1', 56630).
+[2026-08-17 11:46:32] [ARQUIVO ID 1] 'uigh' enviou o arquivo 'Captura de Tela (67).png' para a sala.
+[2026-08-17 11:47:05] [DESCONEXÃO] 'uigh' saiu da sala.
+[2026-08-17 11:47:55] [CONEXÃO] 'fabio' entrou vindo do endereço ('127.0.0.1', 62507).
+[2026-08-17 11:48:08] [DESCONEXÃO] 'fabio' saiu da sala.
+[2026-08-17 11:48:38] [CONEXÃO] 'heitor' entrou vindo do endereço ('127.0.0.1', 62509).
+[2026-08-17 11:50:58] [DESCONEXÃO] 'heitor' saiu da sala.
+[2026-08-17 11:51:22] [CONEXÃO] 'luis' entrou vindo do endereço ('127.0.0.1', 53341).
+[2026-08-17 11:51:48] [ARQUIVO ID 2] 'luis' enviou o arquivo 'Captura de tela 2024-04-07 235234.png' para a sala.
+[2026-08-17 11:53:58] [CONEXÃO] 'jose' entrou vindo do endereço ('127.0.0.1', 53354).
+[2026-08-17 11:54:04] [ARQUIVO ID 3] 'jose' enviou o arquivo 'Captura de Tela (48).png' para a sala.
+[2026-08-17 11:58:41] [DESCONEXÃO] 'luis' saiu da sala.
+[2026-08-17 11:58:41] [DESCONEXÃO] 'jose' saiu da sala.
+[2026-08-17 11:59:07] [CONEXÃO] 'jhonny' entrou vindo do endereço ('127.0.0.1', 57472).
+[2026-08-17 11:59:13] [ARQUIVO ID 4] 'jhonny' enviou o arquivo 'Captura de Tela (42).png' para a sala.
+[2026-08-17 11:59:48] [ARQUIVO ID 5] 'jhonny' enviou o arquivo 'calculadora.py' para a sala.
+[2026-08-17 12:01:15] [DESCONEXÃO] 'jhonny' saiu da sala.
+[2026-08-17 12:02:26] [CONEXÃO] 'claudio' entrou vindo do endereço ('127.0.0.1', 55315).
+[2026-08-17 12:02:59] [ARQUIVO ID 6] 'claudio' enviou o arquivo 'Captura de tela 2024-04-08 231339.png' para a sala.
+[2026-08-17 12:03:20] [DESCONEXÃO] 'claudio' saiu da sala.

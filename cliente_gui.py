@@ -9,16 +9,24 @@ import os
 import sys
 import subprocess
 import base64
+import shutil
 from datetime import datetime
 import customtkinter as ctk
 from tkinter import messagebox, filedialog, Menu, simpledialog
+from PIL import Image, ImageTk
 
 PASTA_ARQUIVOS_RECEBIDOS = "arquivos_recebidos"
 TAMANHO_MAXIMO_ARQUIVO_MB = 15
+EXTENSOES_IMAGEM = ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp')
+
+
+def e_imagem(nome_arquivo):
+    """Verifica se o arquivo é uma imagem suportada."""
+    return nome_arquivo.lower().endswith(EXTENSOES_IMAGEM)
 
 
 def abrir_no_sistema(caminho):
-    """Abre um arquivo ou pasta usando o aplicativo padrão do sistema operacional."""
+    """Abre um arquivo comum no aplicativo padrão do sistema operacional."""
     try:
         if not os.path.exists(caminho):
             messagebox.showerror("Erro", f"Caminho não encontrado:\n{caminho}")
@@ -32,10 +40,11 @@ def abrir_no_sistema(caminho):
     except Exception as e:
         messagebox.showerror("Erro", f"Não foi possível abrir:\n{e}")
 
+
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("dark-blue")
 
-# PALETA DE CORES
+# PALETA DE CORES DA INTERFACE
 COR_FUNDO_PRINCIPAL = "#0D0B10"
 COR_PAINEL           = "#1A1A26"
 COR_INPUT            = "#232334"
@@ -56,12 +65,122 @@ TEXTO_AJUDA = (
 )
 
 
+class ModalImagemDiscord(ctk.CTkToplevel):
+    """Visualizador estilo Discord: tela cheia, overlay escuro, info do remetente e opção de download."""
+    def __init__(self, parent, caminho_imagem, remetente="", hora=""):
+        super().__init__(parent)
+        self.caminho_imagem = caminho_imagem
+        
+        self.attributes("-fullscreen", True)
+        self.configure(fg_color="#0B0B0E")
+        
+        self.transient(parent)
+        self.focus_force()
+        self.grab_set()
+
+        # Eventos para fechar (ESC ou clicar no fundo escuro)
+        self.bind("<Escape>", lambda e: self.fechar())
+        self.bind("<Button-1>", lambda e: self.fechar())
+
+        # Informações no Canto Superior Esquerdo
+        texto_info = f"Enviado por {remetente} • {hora}" if remetente else ""
+        lbl_info = ctk.CTkLabel(
+            self,
+            text=texto_info,
+            font=("Segoe UI", 13, "bold"),
+            text_color="#A0A0B8"
+        )
+        lbl_info.place(relx=0.03, rely=0.04, anchor="nw")
+        lbl_info.bind("<Button-1>", lambda e: "break")
+
+        # Imagem Centralizada
+        try:
+            screen_w = self.winfo_screenwidth()
+            screen_h = self.winfo_screenheight()
+
+            img_pil = Image.open(caminho_imagem)
+            max_w = int(screen_w * 0.85)
+            max_h = int(screen_h * 0.85)
+            img_pil.thumbnail((max_w, max_h), Image.Resampling.LANCZOS)
+
+            self.ctk_img = ctk.CTkImage(light_image=img_pil, dark_image=img_pil, size=img_pil.size)
+
+            lbl_imagem = ctk.CTkLabel(self, image=self.ctk_img, text="")
+            lbl_imagem.place(relx=0.5, rely=0.5, anchor="center")
+            lbl_imagem.bind("<Button-1>", lambda e: "break")
+
+        except Exception:
+            self.fechar()
+            return
+
+        # Botão Baixar Imagem (Canto Superior Direito)
+        btn_download = ctk.CTkButton(
+            self,
+            text="📥 Baixar Imagem",
+            font=("Segoe UI", 12, "bold"),
+            fg_color="#1E1E28",
+            hover_color=COR_AZUL_ACCENT,
+            text_color="#FFFFFF",
+            height=38,
+            corner_radius=10,
+            command=self.baixar_imagem
+        )
+        btn_download.place(relx=0.91, rely=0.04, anchor="e")
+        btn_download.bind("<Button-1>", lambda e: "break")
+
+        # Botão Fechar (X)
+        btn_fechar = ctk.CTkButton(
+            self,
+            text="✕",
+            font=("Segoe UI", 16, "bold"),
+            fg_color="#1E1E28",
+            hover_color="#FF4444",
+            text_color="#FFFFFF",
+            width=38,
+            height=38,
+            corner_radius=19,
+            command=self.fechar
+        )
+        btn_fechar.place(relx=0.96, rely=0.04, anchor="e")
+        btn_fechar.bind("<Button-1>", lambda e: "break")
+
+    def baixar_imagem(self):
+        if not os.path.exists(self.caminho_imagem):
+            messagebox.showerror("Erro", "Arquivo de imagem não encontrado!")
+            return
+
+        nome_original = os.path.basename(self.caminho_imagem)
+        extensao = os.path.splitext(nome_original)[1]
+
+        caminho_destino = filedialog.asksaveasfilename(
+            title="Salvar Imagem",
+            initialfile=nome_original,
+            defaultextension=extensao,
+            filetypes=[("Arquivos de Imagem", "*.png *.jpg *.jpeg *.gif *.webp *.bmp"), ("Todos os Arquivos", "*.*")]
+        )
+
+        if caminho_destino:
+            try:
+                shutil.copy2(self.caminho_imagem, caminho_destino)
+                messagebox.showinfo("Sucesso", "Imagem salva com sucesso!")
+            except Exception as e:
+                messagebox.showerror("Erro", f"Não foi possível salvar a imagem:\n{e}")
+
+    def fechar(self):
+        try:
+            self.grab_release()
+        except Exception:
+            pass
+        self.destroy()
+
+
 class JanelaChatPrivado(ctk.CTkToplevel):
     """Janela popup para conversa privada."""
     def __init__(self, app_principal, destinatario):
         super().__init__(app_principal)
         self.app_principal = app_principal
         self.destinatario = destinatario
+        self.referencias_imagens = []
 
         self.title(f"🔒 Chat Privado com {destinatario}")
         self.geometry("480x520")
@@ -115,7 +234,6 @@ class JanelaChatPrivado(ctk.CTkToplevel):
         )
         self.area_chat.pack(fill="both", expand=True, padx=10, pady=5)
 
-        # Configurar Tags no widget interno
         self.area_chat._textbox.tag_config("voce", foreground=COR_VERDE_VOCE, font=("Consolas", 12, "bold"))
         self.area_chat._textbox.tag_config("outro", foreground=COR_ROXO_PRIVADO, font=("Consolas", 12, "bold"))
         self.area_chat._textbox.tag_config("sistema", foreground=COR_AMARELO_SISTEMA, font=("Consolas", 11, "italic"))
@@ -172,7 +290,6 @@ class JanelaChatPrivado(ctk.CTkToplevel):
 
         cmd = texto.lower()
 
-        # Comandos executados na janela privada
         if cmd == "/clear":
             self.area_chat.configure(state="normal")
             self.area_chat._textbox.delete("1.0", "end")
@@ -190,7 +307,6 @@ class JanelaChatPrivado(ctk.CTkToplevel):
             self.ent_mensagem.delete(0, "end")
             return
 
-        # Envio Normal de Mensagem Privada ao servidor
         self.app_principal.enviar_msg_privada(self.destinatario, texto)
         self.ent_mensagem.delete(0, "end")
 
@@ -254,15 +370,44 @@ class JanelaChatPrivado(ctk.CTkToplevel):
         self.area_chat.configure(state="normal")
         nome_exibido = "Você" if remetente == self.app_principal.apelido else remetente
         tag = "voce" if remetente == self.app_principal.apelido else "outro"
-        tag_link = f"link_arquivo_{id_msg}"
 
-        self.area_chat._textbox.insert("end", f"[{hora}] <{nome_exibido}> enviou um arquivo: ", tag)
-        self.area_chat._textbox.insert("end", f"📎 {nome_arquivo}", ("link_arquivo", tag_link))
-        self.area_chat._textbox.insert("end", "\n", tag)
+        if e_imagem(nome_arquivo):
+            self.area_chat._textbox.insert("end", f"[{hora}] <{nome_exibido}>:\n", tag)
 
-        self.area_chat._textbox.tag_bind(tag_link, "<Button-1>", lambda e, c=caminho_local: abrir_no_sistema(c))
-        self.area_chat._textbox.tag_bind(tag_link, "<Enter>", lambda e: self.area_chat._textbox.config(cursor="hand2"))
-        self.area_chat._textbox.tag_bind(tag_link, "<Leave>", lambda e: self.area_chat._textbox.config(cursor=""))
+            if os.path.exists(caminho_local):
+                try:
+                    img_pil = Image.open(caminho_local)
+                    img_pil.thumbnail((240, 160), Image.Resampling.LANCZOS)
+                    tk_img = ImageTk.PhotoImage(img_pil)
+                    self.referencias_imagens.append(tk_img)
+
+                    pos_inicio = self.area_chat._textbox.index("end-1c")
+                    self.area_chat._textbox.image_create("end", image=tk_img)
+                    pos_fim = self.area_chat._textbox.index("end-1c")
+
+                    tag_img = f"tag_img_{id_msg}"
+                    self.area_chat._textbox.tag_add(tag_img, pos_inicio, pos_fim)
+                    self.area_chat._textbox.tag_bind(
+                        tag_img, "<Button-1>",
+                        lambda e, c=caminho_local, r=nome_exibido, h=hora: self.app_principal.abrir_visualizador_imagem(c, r, h)
+                    )
+                    self.area_chat._textbox.tag_bind(tag_img, "<Enter>", lambda e: self.area_chat._textbox.config(cursor="hand2"))
+                    self.area_chat._textbox.tag_bind(tag_img, "<Leave>", lambda e: self.area_chat._textbox.config(cursor=""))
+
+                    self.area_chat._textbox.insert("end", "\n")
+                except Exception:
+                    pass
+        else:
+            tag_link = f"link_arquivo_{id_msg}"
+            self.area_chat._textbox.insert("end", f"[{hora}] <{nome_exibido}> enviou um arquivo: ", tag)
+            self.area_chat._textbox.insert("end", f"📎 {nome_arquivo}\n", ("link_arquivo", tag_link))
+
+            self.area_chat._textbox.tag_bind(
+                tag_link, "<Button-1>", 
+                lambda e, c=caminho_local: abrir_no_sistema(c)
+            )
+            self.area_chat._textbox.tag_bind(tag_link, "<Enter>", lambda e: self.area_chat._textbox.config(cursor="hand2"))
+            self.area_chat._textbox.tag_bind(tag_link, "<Leave>", lambda e: self.area_chat._textbox.config(cursor=""))
 
         self.area_chat._textbox.see("end")
         self.area_chat.configure(state="disabled")
@@ -288,6 +433,8 @@ class ChatClienteGUI(ctk.CTk):
         self.apelido = ""
         
         self.janelas_privadas = {}
+        self.referencias_imagens = []
+        self.modal_imagem = None
 
         self.title("PyChat - Modern WhatsApp Style")
         self.geometry("850x650")
@@ -295,6 +442,16 @@ class ChatClienteGUI(ctk.CTk):
         
         self.protocol("WM_DELETE_WINDOW", self.fechar_conexao)
         self.criar_tela_login()
+
+    def abrir_visualizador_imagem(self, caminho_imagem, remetente="", hora=""):
+        """Garante a abertura de APENAS UM modal de imagem por vez."""
+        if self.modal_imagem is not None:
+            try:
+                if self.modal_imagem.winfo_exists():
+                    self.modal_imagem.destroy()
+            except Exception:
+                pass
+        self.modal_imagem = ModalImagemDiscord(self, caminho_imagem, remetente, hora)
 
     def criar_tela_login(self):
         self.container_login = ctk.CTkFrame(self, fg_color="transparent", width=420, height=480)
@@ -665,7 +822,6 @@ class ChatClienteGUI(ctk.CTk):
             os.makedirs(PASTA_ARQUIVOS_RECEBIDOS, exist_ok=True)
             caminho_salvo = os.path.join(PASTA_ARQUIVOS_RECEBIDOS, nome_arquivo)
 
-            # Evita sobrescrever arquivos com o mesmo nome
             base, ext = os.path.splitext(caminho_salvo)
             contador = 1
             while os.path.exists(caminho_salvo):
@@ -682,7 +838,6 @@ class ChatClienteGUI(ctk.CTk):
             return
 
         if destino:
-            # Arquivo privado -> mostra na janela de chat privado correspondente
             outro_usuario = destino if remetente == self.apelido else remetente
             if outro_usuario not in self.janelas_privadas:
                 self.abrir_chat_privado(outro_usuario)
@@ -690,23 +845,52 @@ class ChatClienteGUI(ctk.CTk):
             if janela:
                 janela.exibir_arquivo(id_msg, hora, remetente, nome_arquivo, caminho_salvo)
         else:
-            # Arquivo público -> mostra no chat geral, com o nome clicável
             self.adicionar_arquivo_chat_geral(id_msg, hora, remetente, nome_arquivo, caminho_salvo)
 
     def adicionar_arquivo_chat_geral(self, id_msg, hora, remetente, nome_arquivo, caminho_salvo):
         def _inserir():
             nome_exibido = "Você" if remetente == self.apelido else remetente
             tag = "voce" if remetente == self.apelido else "normal"
-            tag_link = f"link_arquivo_{id_msg}"
 
             self.area_chat.configure(state="normal")
-            self.area_chat._textbox.insert("end", f"[{hora}] <{nome_exibido}> enviou um arquivo: ", tag)
-            self.area_chat._textbox.insert("end", f"📎 {nome_arquivo}", ("link_arquivo", tag_link))
-            self.area_chat._textbox.insert("end", "\n", tag)
 
-            self.area_chat._textbox.tag_bind(tag_link, "<Button-1>", lambda e, c=caminho_salvo: abrir_no_sistema(c))
-            self.area_chat._textbox.tag_bind(tag_link, "<Enter>", lambda e: self.area_chat._textbox.config(cursor="hand2"))
-            self.area_chat._textbox.tag_bind(tag_link, "<Leave>", lambda e: self.area_chat._textbox.config(cursor=""))
+            if e_imagem(nome_arquivo):
+                self.area_chat._textbox.insert("end", f"[{hora}] <{nome_exibido}>:\n", tag)
+
+                if os.path.exists(caminho_salvo):
+                    try:
+                        img_pil = Image.open(caminho_salvo)
+                        img_pil.thumbnail((240, 160), Image.Resampling.LANCZOS)
+                        tk_img = ImageTk.PhotoImage(img_pil)
+                        self.referencias_imagens.append(tk_img)
+
+                        pos_inicio = self.area_chat._textbox.index("end-1c")
+                        self.area_chat._textbox.image_create("end", image=tk_img)
+                        pos_fim = self.area_chat._textbox.index("end-1c")
+
+                        tag_img = f"tag_img_{id_msg}"
+                        self.area_chat._textbox.tag_add(tag_img, pos_inicio, pos_fim)
+                        self.area_chat._textbox.tag_bind(
+                            tag_img, "<Button-1>",
+                            lambda e, c=caminho_salvo, r=nome_exibido, h=hora: self.abrir_visualizador_imagem(c, r, h)
+                        )
+                        self.area_chat._textbox.tag_bind(tag_img, "<Enter>", lambda e: self.area_chat._textbox.config(cursor="hand2"))
+                        self.area_chat._textbox.tag_bind(tag_img, "<Leave>", lambda e: self.area_chat._textbox.config(cursor=""))
+
+                        self.area_chat._textbox.insert("end", "\n")
+                    except Exception:
+                        pass
+            else:
+                tag_link = f"link_arquivo_{id_msg}"
+                self.area_chat._textbox.insert("end", f"[{hora}] <{nome_exibido}> enviou um arquivo: ", tag)
+                self.area_chat._textbox.insert("end", f"📎 {nome_arquivo}\n", ("link_arquivo", tag_link))
+
+                self.area_chat._textbox.tag_bind(
+                    tag_link, "<Button-1>", 
+                    lambda e, c=caminho_salvo: abrir_no_sistema(c)
+                )
+                self.area_chat._textbox.tag_bind(tag_link, "<Enter>", lambda e: self.area_chat._textbox.config(cursor="hand2"))
+                self.area_chat._textbox.tag_bind(tag_link, "<Leave>", lambda e: self.area_chat._textbox.config(cursor=""))
 
             self.area_chat._textbox.see("end")
             self.area_chat.configure(state="disabled")
@@ -735,7 +919,6 @@ class ChatClienteGUI(ctk.CTk):
         def _apagar():
             tag_id_unica = f"msg_id_{id_msg}"
 
-            # 1. Tenta apagar no Chat Geral
             self.area_chat.configure(state="normal")
             intervalos = self.area_chat._textbox.tag_ranges(tag_id_unica)
             if intervalos:
@@ -744,7 +927,6 @@ class ChatClienteGUI(ctk.CTk):
                 self.area_chat._textbox.insert(inicio, f"🚫 [Mensagem ID {id_msg} apagada por '{solicitante}']\n", "sistema")
             self.area_chat.configure(state="disabled")
 
-            # 2. Tenta apagar em todas as janelas privadas abertas
             for janela in list(self.janelas_privadas.values()):
                 janela.apagar_mensagem_por_id(id_msg, solicitante)
 
@@ -796,6 +978,7 @@ class ChatClienteGUI(ctk.CTk):
             except Exception:
                 pass
         self.destroy()
+
 
 if __name__ == "__main__":
     app = ChatClienteGUI()
