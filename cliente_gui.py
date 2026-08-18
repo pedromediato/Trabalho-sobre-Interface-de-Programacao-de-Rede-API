@@ -14,6 +14,14 @@ from PIL import Image, ImageTk
 import pyaudio
 import wave
 
+# Tenta inicializar o mixer do pygame para reprodução suave de áudios
+try:
+    import pygame
+    if not pygame.mixer.get_init():
+        pygame.mixer.init()
+except Exception:
+    pass
+
 PASTA_ARQUIVOS_RECEBIDOS = "arquivos_recebidos"
 TAMANHO_MAXIMO_ARQUIVO_MB = 15
 EXTENSOES_IMAGEM = ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp')
@@ -229,6 +237,241 @@ class ModalImagemDiscord(ctk.CTkToplevel):
         except Exception:
             pass
         self.destroy()
+
+
+class CardAudioWhatsApp(ctk.CTkFrame):
+    """Widget de áudio personalizado no estilo WhatsApp com cabeçalho destacado e reprodução ativa."""
+    def __init__(self, parent, caminho_audio, remetente, hora, tema):
+        super().__init__(parent, fg_color="transparent")
+
+        self.caminho_audio = caminho_audio
+        self.remetente = remetente
+        self.hora = hora
+        self.tema = tema
+        self.tocando = False
+
+        # Calcula a duração do áudio (em segundos)
+        self.duracao_segundos = self._obter_duracao_audio()
+
+        # 1. Cabeçalho destacado no topo (ex: [14:11] <Você>:)
+        cor_verde = tema.get("voce", tema.get("accent", "#00FF66"))
+        self.lbl_cabecalho = ctk.CTkLabel(
+            self,
+            text=f"[{hora}] <{remetente}>:",
+            font=("Consolas", 12, "bold"),
+            text_color=cor_verde,
+            anchor="w"
+        )
+        self.lbl_cabecalho.pack(anchor="w", pady=(2, 4))
+
+        # 2. Card do Áudio (Container)
+        self.card = ctk.CTkFrame(
+            self,
+            fg_color=tema.get("input", "#232334"),
+            corner_radius=14,
+            border_width=1,
+            border_color=tema.get("borda", "#2E2E45"),
+            width=310,
+            height=70
+        )
+        self.card.pack(anchor="w")
+        self.card.pack_propagate(False)
+
+        # Container interno para alinhamento centralizado
+        self.conteudo = ctk.CTkFrame(self.card, fg_color="transparent")
+        self.conteudo.pack(fill="x", expand=True, padx=10, pady=(6, 0))
+
+        # Botão de Play / Pause
+        self.btn_play = ctk.CTkButton(
+            self.conteudo,
+            text="▶",
+            font=("Arial", 15, "bold"),
+            width=38,
+            height=38,
+            corner_radius=19,
+            fg_color=tema.get("accent", "#5865F2"),
+            hover_color=tema.get("hover", "#4752C4"),
+            command=self.toggle_play
+        )
+        self.btn_play.pack(side="left", padx=(0, 10))
+
+        # Slider sincronizado com a duração real
+        self.slider = ctk.CTkSlider(
+            self.conteudo,
+            from_=0,
+            to=max(1, self.duracao_segundos),
+            height=12,
+            button_color=tema.get("accent", "#5865F2"),
+            progress_color=tema.get("accent", "#5865F2"),
+            fg_color=tema.get("painel", "#1A1A26"),
+            command=self.ao_arrastar_slider
+        )
+        self.slider.set(0)
+        self.slider.pack(side="left", fill="x", expand=True)
+
+        # 3. Exibição do Tempo / Duração no canto inferior direito
+        self.lbl_tempo = ctk.CTkLabel(
+            self.card,
+            text=self._formatar_tempo(self.duracao_segundos),
+            font=("Segoe UI", 10),
+            text_color=tema.get("texto", "#A0A0B8")
+        )
+        self.lbl_tempo.place(relx=0.95, rely=0.82, anchor="e")
+
+    def _obter_duracao_audio(self):
+        """Calcula a duração total do arquivo de áudio."""
+        if not self.caminho_audio or not os.path.exists(self.caminho_audio):
+            return 0
+        try:
+            import pygame
+            if not pygame.mixer.get_init():
+                pygame.mixer.init()
+            som = pygame.mixer.Sound(self.caminho_audio)
+            return som.get_length()
+        except Exception:
+            pass
+
+        try:
+            wf = wave.open(self.caminho_audio, 'rb')
+            frames = wf.getnframes()
+            rate = wf.getframerate()
+            wf.close()
+            return frames / float(rate)
+        except Exception:
+            return 0
+
+    def _formatar_tempo(self, segundos):
+        mins = int(segundos // 60)
+        secs = int(segundos % 60)
+        return f"{mins:02d}:{secs:02d}"
+
+    def toggle_play(self):
+        """Alterna entre reproduzir e pausar o áudio."""
+        if self.tocando:
+            self.pausar_audio()
+        else:
+            self.tocar_audio()
+
+    def tocar_audio(self):
+        if not self.caminho_audio or not os.path.exists(self.caminho_audio):
+            messagebox.showerror("Erro", f"Arquivo de áudio não encontrado:\n{self.caminho_audio}")
+            return
+
+        try:
+            import pygame
+            if not pygame.mixer.get_init():
+                pygame.mixer.init()
+            pygame.mixer.music.load(self.caminho_audio)
+            pygame.mixer.music.play()
+            self.tocando = True
+            
+            # --- MUDANÇA AQUI ---
+            self.btn_play.configure(text="| |") # Usa barras limpas em vez do símbolo quebrado
+            
+            threading.Thread(target=self._monitorar_pygame, daemon=True).start()
+            return
+        except Exception:
+            pass
+
+        threading.Thread(target=self._tocar_pyaudio, daemon=True).start()
+
+    def _tocar_pyaudio(self):
+        try:
+            wf = wave.open(self.caminho_audio, 'rb')
+            p = pyaudio.PyAudio()
+            stream = p.open(
+                format=p.get_format_from_width(wf.getsampwidth()),
+                channels=wf.getnchannels(),
+                rate=wf.getframerate(),
+                output=True
+            )
+            self.tocando = True
+            
+            # --- MUDANÇA AQUI TAMBÉM ---
+            self.after(0, lambda: self.btn_play.configure(text="| |"))
+
+            data = wf.readframes(1024)
+            total_frames = wf.getnframes()
+            frames_lidos = 0
+
+            while data and self.tocando:
+                stream.write(data)
+                frames_lidos += 1024
+                tempo_atual = (frames_lidos / max(1, total_frames)) * self.duracao_segundos
+                self.after(0, lambda v=tempo_atual: self.slider.set(v))
+                data = wf.readframes(1024)
+
+            stream.stop_stream()
+            stream.close()
+            p.terminate()
+        except Exception as e:
+            print(f"Erro ao tocar via PyAudio: {e}")
+        finally:
+            self.tocando = False
+            self.after(0, lambda: self.btn_play.configure(text="▶"))
+            self.after(0, lambda: self.slider.set(0))
+
+    def _monitorar_pygame(self):
+        import pygame
+        while self.tocando and pygame.mixer.music.get_busy():
+            pos_ms = pygame.mixer.music.get_pos()
+            if pos_ms >= 0:
+                pos_seg = pos_ms / 1000.0
+                self.after(0, lambda v=pos_seg: self.slider.set(v))
+            time.sleep(0.05)
+
+        if self.tocando:
+            self.tocando = False
+            self.after(0, lambda: self.btn_play.configure(text="▶"))
+            self.after(0, lambda: self.slider.set(0))
+
+    def _tocar_pyaudio(self):
+        try:
+            wf = wave.open(self.caminho_audio, 'rb')
+            p = pyaudio.PyAudio()
+            stream = p.open(
+                format=p.get_format_from_width(wf.getsampwidth()),
+                channels=wf.getnchannels(),
+                rate=wf.getframerate(),
+                output=True
+            )
+            self.tocando = True
+            self.after(0, lambda: self.btn_play.configure(text="⏸"))
+
+            data = wf.readframes(1024)
+            total_frames = wf.getnframes()
+            frames_lidos = 0
+
+            while data and self.tocando:
+                stream.write(data)
+                frames_lidos += 1024
+                tempo_atual = (frames_lidos / max(1, total_frames)) * self.duracao_segundos
+                self.after(0, lambda v=tempo_atual: self.slider.set(v))
+                data = wf.readframes(1024)
+
+            stream.stop_stream()
+            stream.close()
+            p.terminate()
+        except Exception as e:
+            print(f"Erro ao tocar via PyAudio: {e}")
+        finally:
+            self.tocando = False
+            self.after(0, lambda: self.btn_play.configure(text="▶"))
+            self.after(0, lambda: self.slider.set(0))
+
+    def pausar_audio(self):
+        """Pausa/Interrompe o áudio."""
+        self.tocando = False
+        try:
+            import pygame
+            if pygame.mixer.get_init():
+                pygame.mixer.music.stop()
+        except Exception:
+            pass
+        self.btn_play.configure(text="▶")
+
+    def ao_arrastar_slider(self, valor):
+        pass
 
 
 class JanelaChatPrivado(ctk.CTkToplevel):
@@ -519,14 +762,16 @@ class JanelaChatPrivado(ctk.CTkToplevel):
                     pass
 
         elif e_audio(nome_arquivo):
-            self.area_chat._textbox.insert("end", f"[{hora}] <{nome_exibido}> enviou um áudio:\n", tag)
-            btn_play = ctk.CTkButton(
-                self.area_chat._textbox, text="▶ Tocar Áudio", width=100, height=28,
-                fg_color="#F39C12", hover_color="#D68910",
-                command=lambda c=caminho_local: self.app_principal.tocar_audio(c)
+            t = TEMAS[self.app_principal.tema_atual_nome]
+            card_audio = CardAudioWhatsApp(
+                parent=self.area_chat._textbox,
+                caminho_audio=caminho_local,
+                remetente=nome_exibido,
+                hora=hora,
+                tema=t
             )
-            self.area_chat._textbox.window_create("end", window=btn_play)
-            self.area_chat._textbox.insert("end", "\n")
+            self.area_chat._textbox.window_create("end", window=card_audio)
+            self.area_chat._textbox.insert("end", "\n\n")
 
         else:
             tag_link = f"link_arquivo_{id_msg}"
@@ -1329,14 +1574,16 @@ class ChatClienteGUI(ctk.CTk):
                     except Exception:
                         pass
             elif e_audio(nome_arquivo):
-                self.area_chat._textbox.insert("end", f"[{hora}] <{nome_exibido}> enviou um áudio:\n", tag)
-                btn_play = ctk.CTkButton(
-                    self.area_chat._textbox, text="▶ Tocar Áudio", width=100, height=28,
-                    fg_color="#F39C12", hover_color="#D68910",
-                    command=lambda c=caminho_salvo: self.tocar_audio(c)
+                t = TEMAS[self.tema_atual_nome]
+                card_audio = CardAudioWhatsApp(
+                    parent=self.area_chat._textbox,
+                    caminho_audio=caminho_salvo,
+                    remetente=nome_exibido,
+                    hora=hora,
+                    tema=t
                 )
-                self.area_chat._textbox.window_create("end", window=btn_play)
-                self.area_chat._textbox.insert("end", "\n")
+                self.area_chat._textbox.window_create("end", window=card_audio)
+                self.area_chat._textbox.insert("end", "\n\n")
             else:
                 tag_link = f"link_arquivo_{id_msg}"
                 self.area_chat._textbox.insert("end", f"[{hora}] <{nome_exibido}> enviou um arquivo: ", tag)

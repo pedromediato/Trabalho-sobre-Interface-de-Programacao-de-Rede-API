@@ -1,0 +1,4 @@
+.venv/
+servidor_log.txt
+arquivos_recebidos/
+__pycache__/
