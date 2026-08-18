@@ -43,6 +43,19 @@ TEMAS = {
         "privado": "#A5B4FC",
         "borda": "#2E2E45"
     },
+    "Grêmio": {
+        "mode": "Dark",
+        "fundo": "#000000",      # Preto
+        "painel": "#111111",     # Cinza muito escuro para destacar do fundo
+        "input": "#222222",      # Cinza escuro para os campos
+        "texto": "#FFFFFF",      # Branco
+        "accent": "#00AEEF",     # Azul Celeste do Grêmio
+        "hover": "#008CBE",      # Azul Celeste um pouco mais escuro
+        "voce": "#00AEEF",       # Suas mensagens em Azul Celeste
+        "sistema": "#AAAAAA",    # Sistema em cinza claro
+        "privado": "#00AEEF",
+        "borda": "#333333"       # Bordas discretas
+    },
     "Claro (Light Modern)": {
         "mode": "Light",
         "fundo": "#F2F3F5",
@@ -68,19 +81,6 @@ TEMAS = {
         "sistema": "#FFE600",
         "privado": "#BD00FF",
         "borda": "#3C1A6E"
-    },
-    "Matrix (Hacker)": {
-        "mode": "Dark",
-        "fundo": "#050B05",
-        "painel": "#0D180D",
-        "input": "#152615",
-        "texto": "#00FF66",
-        "accent": "#00CC44",
-        "hover": "#009933",
-        "voce": "#33FF88",
-        "sistema": "#FFFF55",
-        "privado": "#00EEAA",
-        "borda": "#1E3B1E"
     },
     "Dracula": {
         "mode": "Dark",
@@ -108,15 +108,12 @@ TEXTO_AJUDA = (
 
 
 def e_imagem(nome_arquivo):
-    """Verifica se o arquivo é uma imagem suportada."""
     return nome_arquivo.lower().endswith(EXTENSOES_IMAGEM)
 
 def e_audio(nome_arquivo):
-    """Verifica se o arquivo é de áudio."""
     return nome_arquivo.lower().endswith(('.wav', '.mp3', '.ogg'))
 
 def abrir_no_sistema(caminho):
-    """Abre um arquivo comum no aplicativo padrão do sistema operacional."""
     try:
         if not os.path.exists(caminho):
             messagebox.showerror("Erro", f"Caminho não encontrado:\n{caminho}")
@@ -136,7 +133,6 @@ ctk.set_default_color_theme("blue")
 
 
 class ModalImagemDiscord(ctk.CTkToplevel):
-    """Visualizador de imagem em tela cheia com overlay escuro."""
     def __init__(self, parent, caminho_imagem, remetente="", hora=""):
         super().__init__(parent)
         self.caminho_imagem = caminho_imagem
@@ -188,7 +184,7 @@ class ModalImagemDiscord(ctk.CTkToplevel):
             hover_color="#5865F2",
             text_color="#FFFFFF",
             height=38,
-            corner_radius=10,
+            corner_radius=19, # Arredondado
             command=self.baixar_imagem
         )
         btn_download.place(relx=0.91, rely=0.04, anchor="e")
@@ -203,7 +199,7 @@ class ModalImagemDiscord(ctk.CTkToplevel):
             text_color="#FFFFFF",
             width=38,
             height=38,
-            corner_radius=19,
+            corner_radius=19, # Arredondado (Círculo)
             command=self.fechar
         )
         btn_fechar.place(relx=0.96, rely=0.04, anchor="e")
@@ -240,7 +236,6 @@ class ModalImagemDiscord(ctk.CTkToplevel):
 
 
 class CardAudioWhatsApp(ctk.CTkFrame):
-    """Widget de áudio personalizado no estilo WhatsApp com cabeçalho destacado e reprodução ativa."""
     def __init__(self, parent, caminho_audio, remetente, hora, tema):
         super().__init__(parent, fg_color=tema.get("painel", "#1A1A26"))
 
@@ -252,7 +247,6 @@ class CardAudioWhatsApp(ctk.CTkFrame):
 
         self.duracao_segundos = self._obter_duracao_audio()
 
-        # 1. Cabeçalho destacado
         self.lbl_cabecalho = ctk.CTkLabel(
             self,
             text=f"[{hora}] <{remetente}>:",
@@ -261,7 +255,6 @@ class CardAudioWhatsApp(ctk.CTkFrame):
         )
         self.lbl_cabecalho.pack(anchor="w", pady=(2, 4))
 
-        # 2. Card do Áudio (Container)
         self.card = ctk.CTkFrame(
             self,
             corner_radius=14,
@@ -275,19 +268,17 @@ class CardAudioWhatsApp(ctk.CTkFrame):
         self.conteudo = ctk.CTkFrame(self.card, fg_color="transparent")
         self.conteudo.pack(fill="x", expand=True, padx=10, pady=(6, 0))
 
-        # Botão de Play / Pause
         self.btn_play = ctk.CTkButton(
             self.conteudo,
             text="▶",
             font=("Arial", 15, "bold"),
             width=38,
             height=38,
-            corner_radius=19,
+            corner_radius=19, # Círculo
             command=self.toggle_play
         )
         self.btn_play.pack(side="left", padx=(0, 10))
 
-        # Slider sincronizado com a duração real
         self.slider = ctk.CTkSlider(
             self.conteudo,
             from_=0,
@@ -298,7 +289,6 @@ class CardAudioWhatsApp(ctk.CTkFrame):
         self.slider.set(0)
         self.slider.pack(side="left", fill="x", expand=True)
 
-        # 3. Exibição do Tempo
         self.lbl_tempo = ctk.CTkLabel(
             self.card,
             text=self._formatar_tempo(self.duracao_segundos),
@@ -306,18 +296,13 @@ class CardAudioWhatsApp(ctk.CTkFrame):
         )
         self.lbl_tempo.place(relx=0.95, rely=0.82, anchor="e")
 
-        # Aplica o tema inicial
         self.aplicar_estilo(tema)
 
     def aplicar_estilo(self, tema):
-        """Atualiza dinamicamente as cores do card de áudio segundo o tema fornecido."""
         self.tema = tema
-        
-        # Ajusta o fundo da moldura do áudio para corresponder ao painel do chat
         cor_painel = tema.get("painel", "#1A1A26")
         self.configure(fg_color=cor_painel)
 
-        # Define a cor do nome do remetente
         if self.remetente == "Você":
             cor_nome = tema.get("voce", tema.get("accent", "#00FF66"))
         else:
@@ -371,7 +356,6 @@ class CardAudioWhatsApp(ctk.CTkFrame):
 
     def tocar_audio(self):
         if not self.caminho_audio or not os.path.exists(self.caminho_audio):
-            messagebox.showerror("Erro", f"Arquivo de áudio não encontrado:\n{self.caminho_audio}")
             return
 
         try:
@@ -383,7 +367,6 @@ class CardAudioWhatsApp(ctk.CTkFrame):
             self.tocando = True
             
             self.btn_play.configure(text="| |")
-            
             threading.Thread(target=self._monitorar_pygame, daemon=True).start()
             return
         except Exception:
@@ -402,7 +385,6 @@ class CardAudioWhatsApp(ctk.CTkFrame):
                 output=True
             )
             self.tocando = True
-            
             self.after(0, lambda: self.btn_play.configure(text="| |"))
 
             data = wf.readframes(1024)
@@ -419,8 +401,8 @@ class CardAudioWhatsApp(ctk.CTkFrame):
             stream.stop_stream()
             stream.close()
             p.terminate()
-        except Exception as e:
-            print(f"Erro ao tocar via PyAudio: {e}")
+        except Exception:
+            pass
         finally:
             self.tocando = False
             self.after(0, lambda: self.btn_play.configure(text="▶"))
@@ -455,7 +437,6 @@ class CardAudioWhatsApp(ctk.CTkFrame):
 
 
 class JanelaChatPrivado(ctk.CTkToplevel):
-    """Janela de conversa privada com suporte a temas e áudio."""
     def __init__(self, app_principal, destinatario):
         super().__init__(app_principal)
         self.app_principal = app_principal
@@ -470,7 +451,6 @@ class JanelaChatPrivado(ctk.CTkToplevel):
 
         self.protocol("WM_DELETE_WINDOW", self.fechar)
 
-        # Header
         self.frame_topo = ctk.CTkFrame(self, corner_radius=12, height=45)
         self.frame_topo.pack(fill="x", padx=10, pady=(10, 5))
 
@@ -483,27 +463,28 @@ class JanelaChatPrivado(ctk.CTkToplevel):
 
         self.btn_pasta = ctk.CTkButton(
             self.frame_topo,
-            text="Pasta",
-            font=("Segoe UI", 11, "bold"),
+            text="📁 Pasta",
+            font=("Segoe UI", 12, "bold"),
             fg_color="transparent",
-            width=50,
-            height=28,
+            corner_radius=16, # Arredondado
+            width=70,
+            height=32,
             command=lambda: abrir_no_sistema(os.path.abspath(PASTA_ARQUIVOS_RECEBIDOS))
         )
-        self.btn_pasta.pack(side="right", padx=(0, 10))
+        self.btn_pasta.pack(side="right", padx=(5, 15))
 
         self.btn_menu_opcoes = ctk.CTkButton(
             self.frame_topo,
-            text="Opções",
-            font=("Segoe UI", 11, "bold"),
+            text="⚙️ Opções",
+            font=("Segoe UI", 12, "bold"),
             fg_color="transparent",
-            width=60,
-            height=28,
+            corner_radius=16, # Arredondado
+            width=80,
+            height=32,
             command=self.abrir_menu_opcoes
         )
-        self.btn_menu_opcoes.pack(side="right", padx=(0, 4))
+        self.btn_menu_opcoes.pack(side="right", padx=(5, 5))
 
-        # Área de Histórico
         self.area_chat = ctk.CTkTextbox(
             self,
             font=("Consolas", 12),
@@ -514,7 +495,6 @@ class JanelaChatPrivado(ctk.CTkToplevel):
         self.area_chat.pack(fill="both", expand=True, padx=10, pady=5)
         self.area_chat.configure(state="disabled")
 
-        # Indicador de Digitação
         self.frame_typing = ctk.CTkFrame(self, fg_color="transparent", height=28)
         self.frame_typing.pack(fill="x", padx=10, pady=(2, 4))
 
@@ -529,7 +509,6 @@ class JanelaChatPrivado(ctk.CTkToplevel):
         )
         self.lbl_typing.pack(side="left")
 
-        # Rodapé
         frame_rodape = ctk.CTkFrame(self, fg_color="transparent")
         frame_rodape.pack(fill="x", padx=10, pady=(0, 10))
 
@@ -548,7 +527,7 @@ class JanelaChatPrivado(ctk.CTkToplevel):
             frame_rodape,
             text="Enviar",
             font=("Segoe UI", 11, "bold"),
-            corner_radius=20,
+            corner_radius=20, # Arredondado
             width=70,
             height=40,
             command=self.enviar_mensagem
@@ -559,19 +538,19 @@ class JanelaChatPrivado(ctk.CTkToplevel):
             frame_rodape,
             text="📎",
             font=("Segoe UI", 11, "bold"),
-            corner_radius=20,
+            corner_radius=20, # Arredondado
             width=40,
             height=40,
             command=lambda: self.app_principal.enviar_arquivo(destino=self.destinatario)
         )
         self.btn_anexo.pack(side="right", padx=(0, 8))
 
-        # BOTÃO DE GRAVAR ÁUDIO
+        # BOTÃO DE VOZ - AGORA UM CÍRCULO PERFEITO
         self.btn_voz = ctk.CTkButton(
             frame_rodape,
             text="🎤",
-            font=("Segoe UI", 14, "bold"),
-            corner_radius=20,
+            font=("Segoe UI", 16, "bold"),
+            corner_radius=20, # Metade da altura/largura = Círculo
             width=40,
             height=40,
             fg_color="#E74C3C",
@@ -788,7 +767,6 @@ class JanelaChatPrivado(ctk.CTkToplevel):
 
 
 class ChatClienteGUI(ctk.CTk):
-    """Interface Principal do Cliente com suporte dinâmico a temas e áudio."""
     def __init__(self):
         super().__init__()
 
@@ -805,15 +783,13 @@ class ChatClienteGUI(ctk.CTk):
         self.usuarios_digitando = {}
         self.timer_typing_geral = None
 
-        # TEMA E STATUS DE PRESENÇA
         self.tema_atual_nome = "Padrão"
         self.status_atual = "Online"
         self.status_manual = False
-        self.tempo_limite_inatividade = 300  # 5 minutos
+        self.tempo_limite_inatividade = 300
         self.ultima_atividade = time.time()
         self.status_usuarios = {}
 
-        # VARIAVEIS DE GRAVAÇÃO DE ÁUDIO
         self.is_recording = False
         self.audio_frames = []
         self.audio_stream = None
@@ -825,7 +801,6 @@ class ChatClienteGUI(ctk.CTk):
         self.protocol("WM_DELETE_WINDOW", self.fechar_conexao)
         self.criar_tela_login()
 
-        # Monitoramento global de atividade
         self.bind_all("<Key>", self.registrar_atividade)
         self.bind_all("<Button>", self.registrar_atividade)
         self.bind_all("<Motion>", self.registrar_atividade)
@@ -866,7 +841,7 @@ class ChatClienteGUI(ctk.CTk):
             fg_color=t["accent"],
             hover_color=t["hover"],
             height=42,
-            corner_radius=12,
+            corner_radius=21, # Arredondado
             command=self.conectar_ao_servidor
         )
         btn_conectar.pack(pady=(20, 20), padx=30, fill="x")
@@ -911,17 +886,15 @@ class ChatClienteGUI(ctk.CTk):
             messagebox.showerror("Erro de Conexão", f"Não foi possível conectar ao servidor:\n{e}")
 
     def criar_tela_chat(self):
-        # Header superior
         self.frame_topo = ctk.CTkFrame(self, corner_radius=15, height=50)
         self.frame_topo.pack(fill="x", padx=15, pady=(15, 0))
         
         self.lbl_usuario = ctk.CTkLabel(
             self.frame_topo, text=f"Usuário: {self.apelido}", font=("Segoe UI", 13, "bold")
         )
-        self.lbl_usuario.pack(side="left", padx=(15, 10))
+        self.lbl_usuario.pack(side="left", padx=(15, 40))
 
-        # Dropdown Status
-        ctk.CTkLabel(self.frame_topo, text="Status:", font=("Segoe UI", 11)).pack(side="left", padx=(10, 2))
+        ctk.CTkLabel(self.frame_topo, text="Status:", font=("Segoe UI", 11)).pack(side="left", padx=(0, 2))
         self.combo_status = ctk.CTkOptionMenu(
             self.frame_topo,
             values=["Online", "Ausente", "Ocupado"],
@@ -932,7 +905,6 @@ class ChatClienteGUI(ctk.CTk):
         self.combo_status.set("Online")
         self.combo_status.pack(side="left", padx=(0, 10))
 
-        # Dropdown Tema
         ctk.CTkLabel(self.frame_topo, text="Tema:", font=("Segoe UI", 11)).pack(side="left", padx=(10, 2))
         self.combo_tema = ctk.CTkOptionMenu(
             self.frame_topo,
@@ -946,27 +918,28 @@ class ChatClienteGUI(ctk.CTk):
 
         self.btn_pasta = ctk.CTkButton(
             self.frame_topo,
-            text="Pasta",
-            font=("Segoe UI", 11, "bold"),
+            text="📁 Pasta",
+            font=("Segoe UI", 12, "bold"),
             fg_color="transparent",
-            width=60,
+            corner_radius=16, # Arredondado
+            width=70,
             height=32,
             command=lambda: abrir_no_sistema(os.path.abspath(PASTA_ARQUIVOS_RECEBIDOS))
         )
-        self.btn_pasta.pack(side="right", padx=(0, 15))
+        self.btn_pasta.pack(side="right", padx=(5, 15))
 
         self.btn_menu_opcoes = ctk.CTkButton(
             self.frame_topo,
-            text="Opções",
-            font=("Segoe UI", 11, "bold"),
+            text="⚙️ Opções",
+            font=("Segoe UI", 12, "bold"),
             fg_color="transparent",
-            width=60,
+            corner_radius=16, # Arredondado
+            width=80,
             height=32,
             command=self.abrir_menu_opcoes
         )
-        self.btn_menu_opcoes.pack(side="right", padx=(0, 4))
+        self.btn_menu_opcoes.pack(side="right", padx=(5, 5))
 
-        # Corpo Central
         self.frame_corpo = ctk.CTkFrame(self, fg_color="transparent")
         self.frame_corpo.pack(fill="both", expand=True, padx=15, pady=(12, 4))
 
@@ -980,7 +953,6 @@ class ChatClienteGUI(ctk.CTk):
         self.area_chat.pack(side="left", fill="both", expand=True, padx=(0, 10))
         self.area_chat.configure(state="disabled")
 
-        # Sidebar Usuários
         self.frame_sidebar = ctk.CTkFrame(self.frame_corpo, width=220, corner_radius=15, border_width=1)
         self.frame_sidebar.pack(side="right", fill="y")
         self.frame_sidebar.pack_propagate(False)
@@ -989,7 +961,6 @@ class ChatClienteGUI(ctk.CTk):
         self.scroll_usuarios = ctk.CTkScrollableFrame(self.frame_sidebar, fg_color="transparent")
         self.scroll_usuarios.pack(fill="both", expand=True, padx=5, pady=5)
 
-        # Indicador de Digitação
         self.frame_typing = ctk.CTkFrame(self, fg_color="transparent", height=28)
         self.frame_typing.pack(fill="x", padx=15, pady=(2, 6))
 
@@ -1004,7 +975,6 @@ class ChatClienteGUI(ctk.CTk):
         )
         self.lbl_typing.pack(side="left")
 
-        # Rodapé
         frame_rodape = ctk.CTkFrame(self, fg_color="transparent", height=50)
         frame_rodape.pack(fill="x", padx=15, pady=(0, 15))
 
@@ -1023,7 +993,7 @@ class ChatClienteGUI(ctk.CTk):
             frame_rodape,
             text="Enviar Geral",
             font=("Segoe UI", 12, "bold"),
-            corner_radius=25,
+            corner_radius=23, # Arredondado
             width=100,
             height=46,
             command=self.enviar_mensagem
@@ -1034,20 +1004,20 @@ class ChatClienteGUI(ctk.CTk):
             frame_rodape,
             text="📎 Arquivo",
             font=("Segoe UI", 12, "bold"),
-            corner_radius=25,
+            corner_radius=23, # Arredondado
             width=90,
             height=46,
             command=lambda: self.enviar_arquivo()
         )
         self.btn_anexo.pack(side="right", padx=(0, 8))
 
-        # BOTÃO DE VOZ NO CHAT GERAL
+        # BOTÃO DE VOZ - AGORA UM CÍRCULO PERFEITO
         self.btn_voz = ctk.CTkButton(
             frame_rodape,
-            text="🎤 Gravar",
-            font=("Segoe UI", 12, "bold"),
-            corner_radius=25,
-            width=90,
+            text="🎤",
+            font=("Segoe UI", 16, "bold"),
+            corner_radius=23, # Metade da altura/largura = Círculo
+            width=46,
             height=46,
             fg_color="#E74C3C",
             hover_color="#C0392B",
@@ -1098,7 +1068,6 @@ class ChatClienteGUI(ctk.CTk):
 
             self.atualizar_lista_usuarios(list(self.status_usuarios.keys()))
 
-        # Re-aplica estilo em todos os cards de áudio no chat geral
         for card in self.cards_audio:
             if card.winfo_exists():
                 card.aplicar_estilo(t)
@@ -1107,23 +1076,19 @@ class ChatClienteGUI(ctk.CTk):
             if janela.winfo_exists():
                 janela.aplicar_estilo(t)
 
-    # =========================================================
-    # LÓGICA DE ÁUDIO E VOZ
-    # =========================================================
     def toggle_gravacao_geral(self):
         self._toggle_gravacao(self.btn_voz, destino=None)
 
     def _toggle_gravacao(self, botao_referencia, destino=None):
         if not self.is_recording:
-            # INICIA A GRAVAÇÃO
+            # INICIA A GRAVAÇÃO E MUDA PARA ÍCONE DE PARAR (⏹)
             self.is_recording = True
-            botao_referencia.configure(text="| |  Parar", fg_color="#2ECC71", hover_color="#27AE60")
+            botao_referencia.configure(text="⏹", fg_color="#2ECC71", hover_color="#27AE60")
             threading.Thread(target=self._gravar_audio_thread, daemon=True).start()
         else:
-            # PARA E ENVIA
+            # PARA, ENVIA E VOLTA PRO ÍCONE DE GRAVAR (🎤)
             self.is_recording = False
-            texto_padrao = "🎤 Gravar" if destino is None else "🎤"
-            botao_referencia.configure(text=texto_padrao, fg_color="#E74C3C", hover_color="#C0392B")
+            botao_referencia.configure(text="🎤", fg_color="#E74C3C", hover_color="#C0392B")
             self._salvar_e_enviar_audio(destino)
 
     def _gravar_audio_thread(self):
@@ -1187,7 +1152,6 @@ class ChatClienteGUI(ctk.CTk):
                 messagebox.showerror("Erro de Áudio", f"Erro ao reproduzir o áudio:\n{e}")
         threading.Thread(target=_play, daemon=True).start()
 
-    # --- GERENCIAMENTO DE STATUS ---
     def registrar_atividade(self, event=None):
         self.ultima_atividade = time.time()
         if not self.status_manual and self.status_atual == "Ausente":
@@ -1227,7 +1191,6 @@ class ChatClienteGUI(ctk.CTk):
         except Exception:
             pass
 
-    # --- MENSAGENS E DIGITAÇÃO ---
     def notificar_digitacao(self, event=None):
         if event and event.keysym in ("Return", "BackSpace", "Tab", "Escape"):
             return
@@ -1413,7 +1376,6 @@ class ChatClienteGUI(ctk.CTk):
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao enviar mensagem privada: {e}")
 
-    # --- RECEBIMENTO ---
     def receber_mensagens(self):
         buffer_dados = ""
         while self.conectado:
@@ -1644,7 +1606,6 @@ class ChatClienteGUI(ctk.CTk):
         for widget in self.scroll_usuarios.winfo_children():
             widget.destroy()
 
-        # Oculta a barra de rolagem se houver 8 ou menos usuários
         if len(lista) <= 8:
             self.scroll_usuarios._scrollbar.grid_forget()
         else:
@@ -1653,7 +1614,6 @@ class ChatClienteGUI(ctk.CTk):
         t = TEMAS[self.tema_atual_nome]
 
         for user in lista:
-            # ... (mantenha o restante do método exatamente igual)
             e_voce = user == self.apelido
             st = self.status_usuarios.get(user, "Online")
             
