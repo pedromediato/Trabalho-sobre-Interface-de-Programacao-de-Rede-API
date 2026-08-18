@@ -47,12 +47,12 @@ TEMAS = {
         "mode": "Light",
         "fundo": "#F2F3F5",
         "painel": "#FFFFFF",
-        "input": "#EBEDEF",
+        "input": "#E6E6E6",
         "texto": "#2E3338",
         "accent": "#5865F2",
         "hover": "#4752C4",
         "voce": "#23A55A",
-        "sistema": "#D8A200",
+        "sistema": "#D86800",
         "privado": "#6C5CE7",
         "borda": "#E3E5E8"
     },
@@ -242,7 +242,7 @@ class ModalImagemDiscord(ctk.CTkToplevel):
 class CardAudioWhatsApp(ctk.CTkFrame):
     """Widget de áudio personalizado no estilo WhatsApp com cabeçalho destacado e reprodução ativa."""
     def __init__(self, parent, caminho_audio, remetente, hora, tema):
-        super().__init__(parent, fg_color="transparent")
+        super().__init__(parent, fg_color=tema.get("painel", "#1A1A26"))
 
         self.caminho_audio = caminho_audio
         self.remetente = remetente
@@ -250,16 +250,13 @@ class CardAudioWhatsApp(ctk.CTkFrame):
         self.tema = tema
         self.tocando = False
 
-        # Calcula a duração do áudio (em segundos)
         self.duracao_segundos = self._obter_duracao_audio()
 
-        # 1. Cabeçalho destacado no topo (ex: [14:11] <Você>:)
-        cor_verde = tema.get("voce", tema.get("accent", "#00FF66"))
+        # 1. Cabeçalho destacado
         self.lbl_cabecalho = ctk.CTkLabel(
             self,
             text=f"[{hora}] <{remetente}>:",
             font=("Consolas", 12, "bold"),
-            text_color=cor_verde,
             anchor="w"
         )
         self.lbl_cabecalho.pack(anchor="w", pady=(2, 4))
@@ -267,17 +264,14 @@ class CardAudioWhatsApp(ctk.CTkFrame):
         # 2. Card do Áudio (Container)
         self.card = ctk.CTkFrame(
             self,
-            fg_color=tema.get("input", "#232334"),
             corner_radius=14,
             border_width=1,
-            border_color=tema.get("borda", "#2E2E45"),
             width=310,
             height=70
         )
         self.card.pack(anchor="w")
         self.card.pack_propagate(False)
 
-        # Container interno para alinhamento centralizado
         self.conteudo = ctk.CTkFrame(self.card, fg_color="transparent")
         self.conteudo.pack(fill="x", expand=True, padx=10, pady=(6, 0))
 
@@ -289,8 +283,6 @@ class CardAudioWhatsApp(ctk.CTkFrame):
             width=38,
             height=38,
             corner_radius=19,
-            fg_color=tema.get("accent", "#5865F2"),
-            hover_color=tema.get("hover", "#4752C4"),
             command=self.toggle_play
         )
         self.btn_play.pack(side="left", padx=(0, 10))
@@ -301,25 +293,51 @@ class CardAudioWhatsApp(ctk.CTkFrame):
             from_=0,
             to=max(1, self.duracao_segundos),
             height=12,
-            button_color=tema.get("accent", "#5865F2"),
-            progress_color=tema.get("accent", "#5865F2"),
-            fg_color=tema.get("painel", "#1A1A26"),
             command=self.ao_arrastar_slider
         )
         self.slider.set(0)
         self.slider.pack(side="left", fill="x", expand=True)
 
-        # 3. Exibição do Tempo / Duração no canto inferior direito
+        # 3. Exibição do Tempo
         self.lbl_tempo = ctk.CTkLabel(
             self.card,
             text=self._formatar_tempo(self.duracao_segundos),
-            font=("Segoe UI", 10),
-            text_color=tema.get("texto", "#A0A0B8")
+            font=("Segoe UI", 10)
         )
         self.lbl_tempo.place(relx=0.95, rely=0.82, anchor="e")
 
+        # Aplica o tema inicial
+        self.aplicar_estilo(tema)
+
+    def aplicar_estilo(self, tema):
+        """Atualiza dinamicamente as cores do card de áudio segundo o tema fornecido."""
+        self.tema = tema
+        
+        # Ajusta o fundo da moldura do áudio para corresponder ao painel do chat
+        cor_painel = tema.get("painel", "#1A1A26")
+        self.configure(fg_color=cor_painel)
+
+        # Define a cor do nome do remetente
+        if self.remetente == "Você":
+            cor_nome = tema.get("voce", tema.get("accent", "#00FF66"))
+        else:
+            cor_nome = tema.get("texto", "#F0F0E0")
+
+        self.lbl_cabecalho.configure(text_color=cor_nome)
+        self.card.configure(fg_color=tema.get("input", "#232334"), border_color=tema.get("borda", "#2E2E45"))
+        self.btn_play.configure(
+            fg_color=tema.get("accent", "#5865F2"), 
+            hover_color=tema.get("hover", "#4752C4"),
+            text_color="#FFFFFF"
+        )
+        self.slider.configure(
+            button_color=tema.get("accent", "#5865F2"), 
+            progress_color=tema.get("accent", "#5865F2"), 
+            fg_color=tema.get("painel", "#1A1A26")
+        )
+        self.lbl_tempo.configure(text_color=tema.get("texto", "#A0A0B8"))
+
     def _obter_duracao_audio(self):
-        """Calcula a duração total do arquivo de áudio."""
         if not self.caminho_audio or not os.path.exists(self.caminho_audio):
             return 0
         try:
@@ -346,7 +364,6 @@ class CardAudioWhatsApp(ctk.CTkFrame):
         return f"{mins:02d}:{secs:02d}"
 
     def toggle_play(self):
-        """Alterna entre reproduzir e pausar o áudio."""
         if self.tocando:
             self.pausar_audio()
         else:
@@ -365,8 +382,7 @@ class CardAudioWhatsApp(ctk.CTkFrame):
             pygame.mixer.music.play()
             self.tocando = True
             
-            # --- MUDANÇA AQUI ---
-            self.btn_play.configure(text="| |") # Usa barras limpas em vez do símbolo quebrado
+            self.btn_play.configure(text="| |")
             
             threading.Thread(target=self._monitorar_pygame, daemon=True).start()
             return
@@ -387,7 +403,6 @@ class CardAudioWhatsApp(ctk.CTkFrame):
             )
             self.tocando = True
             
-            # --- MUDANÇA AQUI TAMBÉM ---
             self.after(0, lambda: self.btn_play.configure(text="| |"))
 
             data = wf.readframes(1024)
@@ -425,42 +440,7 @@ class CardAudioWhatsApp(ctk.CTkFrame):
             self.after(0, lambda: self.btn_play.configure(text="▶"))
             self.after(0, lambda: self.slider.set(0))
 
-    def _tocar_pyaudio(self):
-        try:
-            wf = wave.open(self.caminho_audio, 'rb')
-            p = pyaudio.PyAudio()
-            stream = p.open(
-                format=p.get_format_from_width(wf.getsampwidth()),
-                channels=wf.getnchannels(),
-                rate=wf.getframerate(),
-                output=True
-            )
-            self.tocando = True
-            self.after(0, lambda: self.btn_play.configure(text="⏸"))
-
-            data = wf.readframes(1024)
-            total_frames = wf.getnframes()
-            frames_lidos = 0
-
-            while data and self.tocando:
-                stream.write(data)
-                frames_lidos += 1024
-                tempo_atual = (frames_lidos / max(1, total_frames)) * self.duracao_segundos
-                self.after(0, lambda v=tempo_atual: self.slider.set(v))
-                data = wf.readframes(1024)
-
-            stream.stop_stream()
-            stream.close()
-            p.terminate()
-        except Exception as e:
-            print(f"Erro ao tocar via PyAudio: {e}")
-        finally:
-            self.tocando = False
-            self.after(0, lambda: self.btn_play.configure(text="▶"))
-            self.after(0, lambda: self.slider.set(0))
-
     def pausar_audio(self):
-        """Pausa/Interrompe o áudio."""
         self.tocando = False
         try:
             import pygame
@@ -481,6 +461,7 @@ class JanelaChatPrivado(ctk.CTkToplevel):
         self.app_principal = app_principal
         self.destinatario = destinatario
         self.referencias_imagens = []
+        self.cards_audio = []
         self.ultimo_envio_typing = 0
         self.timer_typing = None
 
@@ -609,7 +590,8 @@ class JanelaChatPrivado(ctk.CTkToplevel):
         self.area_chat.configure(fg_color=t["painel"], text_color=t["texto"], border_color=t["borda"])
         self.ent_mensagem.configure(fg_color=t["input"], text_color=t["texto"], border_color=t["borda"])
         self.btn_enviar.configure(fg_color=t["accent"], hover_color=t["hover"])
-        self.btn_anexo.configure(fg_color=t["input"], hover_color=t["hover"])
+        
+        self.btn_anexo.configure(fg_color=t["input"], hover_color=t["hover"], text_color=t["texto"])
         
         self.lbl_typing.configure(text_color=t["privado"])
         
@@ -617,6 +599,10 @@ class JanelaChatPrivado(ctk.CTkToplevel):
         self.area_chat._textbox.tag_config("outro", foreground=t["privado"], font=("Consolas", 12, "bold"))
         self.area_chat._textbox.tag_config("sistema", foreground=t["sistema"], font=("Consolas", 11, "italic"))
         self.area_chat._textbox.tag_config("link_arquivo", foreground=t["accent"], font=("Consolas", 12, "bold", "underline"))
+
+        for card in self.cards_audio:
+            if card.winfo_exists():
+                card.aplicar_estilo(t)
 
     def toggle_gravacao_privada(self):
         self.app_principal._toggle_gravacao(self.btn_voz, destino=self.destinatario)
@@ -770,6 +756,7 @@ class JanelaChatPrivado(ctk.CTkToplevel):
                 hora=hora,
                 tema=t
             )
+            self.cards_audio.append(card_audio)
             self.area_chat._textbox.window_create("end", window=card_audio)
             self.area_chat._textbox.insert("end", "\n\n")
 
@@ -811,6 +798,7 @@ class ChatClienteGUI(ctk.CTk):
         
         self.janelas_privadas = {}
         self.referencias_imagens = []
+        self.cards_audio = []
         self.modal_imagem = None
 
         self.ultimo_envio_typing_geral = 0
@@ -1100,7 +1088,8 @@ class ChatClienteGUI(ctk.CTk):
 
             self.ent_mensagem.configure(fg_color=t["input"], text_color=t["texto"], border_color=t["borda"])
             self.btn_enviar.configure(fg_color=t["accent"], hover_color=t["hover"])
-            self.btn_anexo.configure(fg_color=t["input"], hover_color=t["hover"])
+            
+            self.btn_anexo.configure(fg_color=t["input"], hover_color=t["hover"], text_color=t["texto"])
 
             self.area_chat._textbox.tag_config("voce", foreground=t["voce"], font=("Consolas", 12, "bold"))
             self.area_chat._textbox.tag_config("normal", foreground=t["texto"])
@@ -1108,6 +1097,11 @@ class ChatClienteGUI(ctk.CTk):
             self.area_chat._textbox.tag_config("link_arquivo", foreground=t["accent"], font=("Consolas", 12, "bold", "underline"))
 
             self.atualizar_lista_usuarios(list(self.status_usuarios.keys()))
+
+        # Re-aplica estilo em todos os cards de áudio no chat geral
+        for card in self.cards_audio:
+            if card.winfo_exists():
+                card.aplicar_estilo(t)
 
         for janela in list(self.janelas_privadas.values()):
             if janela.winfo_exists():
@@ -1123,7 +1117,7 @@ class ChatClienteGUI(ctk.CTk):
         if not self.is_recording:
             # INICIA A GRAVAÇÃO
             self.is_recording = True
-            botao_referencia.configure(text="⏹ Parar", fg_color="#2ECC71", hover_color="#27AE60")
+            botao_referencia.configure(text="| |  Parar", fg_color="#2ECC71", hover_color="#27AE60")
             threading.Thread(target=self._gravar_audio_thread, daemon=True).start()
         else:
             # PARA E ENVIA
@@ -1582,6 +1576,7 @@ class ChatClienteGUI(ctk.CTk):
                     hora=hora,
                     tema=t
                 )
+                self.cards_audio.append(card_audio)
                 self.area_chat._textbox.window_create("end", window=card_audio)
                 self.area_chat._textbox.insert("end", "\n\n")
             else:
@@ -1649,9 +1644,16 @@ class ChatClienteGUI(ctk.CTk):
         for widget in self.scroll_usuarios.winfo_children():
             widget.destroy()
 
+        # Oculta a barra de rolagem se houver 8 ou menos usuários
+        if len(lista) <= 8:
+            self.scroll_usuarios._scrollbar.grid_forget()
+        else:
+            self.scroll_usuarios._scrollbar.grid()
+
         t = TEMAS[self.tema_atual_nome]
 
         for user in lista:
+            # ... (mantenha o restante do método exatamente igual)
             e_voce = user == self.apelido
             st = self.status_usuarios.get(user, "Online")
             

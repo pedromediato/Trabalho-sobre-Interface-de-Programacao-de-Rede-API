@@ -308,3 +308,60 @@
 [2026-08-18 14:33:56] [DESCONEXÃO] 'kk' saiu da sala.
 [2026-08-18 14:34:16] [ARQUIVO ID 3] 'w' enviou o arquivo 'audio_1787074456.wav' para a sala.
 [2026-08-18 14:34:18] [DESCONEXÃO] 'w' saiu da sala.
+[2026-08-18 14:40:49] --- SERVIDOR INICIADO ---
+[2026-08-18 14:40:53] [CONEXÃO] 'a' entrou vindo do endereço ('127.0.0.1', 60512).
+[2026-08-18 14:40:58] [ARQUIVO ID 1] 'a' enviou o arquivo 'audio_1787074858.wav' para a sala.
+[2026-08-18 14:43:27] [CONEXÃO] 'rf' entrou vindo do endereço ('127.0.0.1', 62179).
+[2026-08-18 14:43:36] [ARQUIVO ID 2] 'a' enviou o arquivo 'audio_1787075016.wav' para a sala.
+[2026-08-18 14:43:59] [ARQUIVO PRIVADO ID 3] 'a' enviou 'audio_1787075039.wav' para 'rf'.
+[2026-08-18 14:46:35] [DESCONEXÃO] 'rf' saiu da sala.
+[2026-08-18 14:46:39] --- SERVIDOR INICIADO ---
+[2026-08-18 14:46:43] [CONEXÃO] 'a' entrou vindo do endereço ('127.0.0.1', 49420).
+[2026-08-18 14:46:48] [ARQUIVO ID 1] 'a' enviou o arquivo 'audio_1787075208.wav' para a sala.
+[2026-08-18 14:51:17] --- SERVIDOR INICIADO ---
+[2026-08-18 14:51:20] [CONEXÃO] 's' entrou vindo do endereço ('127.0.0.1', 57633).
+[2026-08-18 14:51:26] [ARQUIVO ID 1] 's' enviou o arquivo 'audio_1787075486.wav' para a sala.
+[2026-08-18 14:52:13] [DESCONEXÃO] 's' saiu da sala.
+[2026-08-18 14:52:53] --- SERVIDOR INICIADO ---
+[2026-08-18 14:52:57] [CONEXÃO] 'jyfrdj' entrou vindo do endereço ('127.0.0.1', 63781).
+[2026-08-18 14:53:46] [DESCONEXÃO] 'jyfrdj' saiu da sala.
+[2026-08-18 14:53:49] --- SERVIDOR INICIADO ---
+[2026-08-18 14:53:52] [CONEXÃO] 'agagf' entrou vindo do endereço ('127.0.0.1', 63785).
+[2026-08-18 14:54:15] [DESCONEXÃO] 'agagf' saiu da sala.
+[2026-08-18 14:54:40] --- SERVIDOR INICIADO ---
+[2026-08-18 14:54:43] [CONEXÃO] 'gGSAGg' entrou vindo do endereço ('127.0.0.1', 55499).
+[2026-08-18 14:55:15] [DESCONEXÃO] 'gGSAGg' saiu da sala.
+[2026-08-18 14:55:20] --- SERVIDOR INICIADO ---
+[2026-08-18 14:55:23] [CONEXÃO] 'gsagsg' entrou vindo do endereço ('127.0.0.1', 49446).
+[2026-08-18 14:55:37] [DESCONEXÃO] 'gsagsg' saiu da sala.
+[2026-08-18 14:55:52] --- SERVIDOR INICIADO ---
+[2026-08-18 14:55:55] [CONEXÃO] 'asfaf' entrou vindo do endereço ('127.0.0.1', 49452).
+[2026-08-18 14:56:10] [DESCONEXÃO] 'asfaf' saiu da sala.
+[2026-08-18 14:59:46] --- SERVIDOR INICIADO ---
+[2026-08-18 14:59:50] [CONEXÃO] 'qrtqr' entrou vindo do endereço ('127.0.0.1', 56416).
+[2026-08-18 14:59:54] [ARQUIVO ID 1] 'qrtqr' enviou o arquivo 'audio_1787075994.wav' para a sala.
+[2026-08-18 15:00:49] [DESCONEXÃO] 'qrtqr' saiu da sala.
+[2026-08-18 15:00:52] --- SERVIDOR INICIADO ---
+[2026-08-18 15:00:55] [CONEXÃO] 'vx' entrou vindo do endereço ('127.0.0.1', 56423).
+[2026-08-18 15:01:05] [ARQUIVO ID 1] 'vx' enviou o arquivo 'audio_1787076065.wav' para a sala.
+[2026-08-18 15:01:09] [CONEXÃO] 'hhhh' entrou vindo do endereço ('127.0.0.1', 56424).
+[2026-08-18 15:01:16] [ARQUIVO PRIVADO ID 2] 'vx' enviou 'audio_1787076076.wav' para 'hhhh'.
+[2026-08-18 15:01:25] [DESCONEXÃO] 'vx' saiu da sala.
+[2026-08-18 15:01:26] [DESCONEXÃO] 'hhhh' saiu da sala.
+[2026-08-18 15:01:51] --- SERVIDOR INICIADO ---
+[2026-08-18 15:01:54] [CONEXÃO] 'gsgs' entrou vindo do endereço ('127.0.0.1', 56430).
+[2026-08-18 15:02:25] [ARQUIVO ID 1] 'gsgs' enviou o arquivo 'audio_1787076145.wav' para a sala.
+[2026-08-18 15:02:29] [ARQUIVO ID 2] 'gsgs' enviou o arquivo 'Captura de Tela (15).png' para a sala.
+[2026-08-18 15:02:37] [ARQUIVO ID 3] 'gsgs' enviou o arquivo 'audio_1787076157.wav' para a sala.
+[2026-08-18 15:08:24] --- SERVIDOR INICIADO ---
+[2026-08-18 15:08:27] [CONEXÃO] 'dA' entrou vindo do endereço ('127.0.0.1', 50220).
+[2026-08-18 15:09:05] [DESCONEXÃO] 'dA' saiu da sala.
+[2026-08-18 15:09:07] [CONEXÃO] 'hj' entrou vindo do endereço ('127.0.0.1', 50222).
+[2026-08-18 15:09:15] [STATUS] 'hj' alterou seu status para 'Online'.
+[2026-08-18 15:09:16] [STATUS] 'hj' alterou seu status para 'Ausente'.
+[2026-08-18 15:09:17] [STATUS] 'hj' alterou seu status para 'Ocupado'.
+[2026-08-18 15:09:18] [STATUS] 'hj' alterou seu status para 'Online'.
+[2026-08-18 15:09:29] [DESCONEXÃO] 'hj' saiu da sala.
+[2026-08-18 15:09:45] --- SERVIDOR INICIADO ---
+[2026-08-18 15:09:48] [CONEXÃO] 's' entrou vindo do endereço ('127.0.0.1', 63123).
+[2026-08-18 15:10:02] [DESCONEXÃO] 's' saiu da sala.
